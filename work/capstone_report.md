@@ -74,6 +74,15 @@ to 0.92, injecting a raw future count leaks weakly, and a random split inflates 
 dominant term; the largest (`char_count` / `word_count`, opposite signs) is **multicollinearity**
 (r = 0.934), not a leak.
 
+**A leak the ML-05 hunt missed.** `dim_content` is an **export-time snapshot**, not a
+point-in-time record: `content_updated_date` falls *after* the decision point for **77.3%** of
+cohort pages at D1, and a single bulk date (2026-05-20) accounts for 204,409 items
+(39.3% of all content). `days_since_last_update` was therefore leaky and has been removed.
+The ML-05 hunt verified the timeline for the *fact table* windows and never asked the same question
+of the dimension table. A related consequence: an `is_deleted`/`is_published` filter added during
+ML-05 was itself selection on the outcome window — excluding pages by their July status when making
+a March decision — and has been reverted.
+
 **Client-identifying content:** none. Swept the notebooks for URLs and raw queries — clean.
 The only identifiers that appear are pseudonymous `content_*` / `client_*` hashes in `df.head()`
 output, which `DATA_USE.md` explicitly permits, shown to demonstrate grain rather than as a
@@ -161,69 +170,40 @@ documentation. "Pages scanned" in an audit may be a wider funnel than pages actu
 content credits bound the latter. Our output is a review queue, so the audit figure is the right
 analogue. If that operational number differs, K moves; the per-client scoping does not.
 
-**Result: no demonstrable signal.** Ten grouped splits, identical pipeline, only the seed changed:
+**Result: the probe finds no signal, and the signal audit explains why.**
 
-| | mean | range | spread |
-|---|---|---|---|
-| test base rate | 0.391 | 0.259 – 0.515 | 0.256 |
-| **AUC** | **0.502** | 0.457 – 0.549 | 0.092 |
-| Precision@20 | 0.440 | 0.300 – 0.650 | 0.350 |
-| **Precision@50** | **0.408** | 0.240 – 0.660 | 0.420 |
+ML-05's logistic-regression probe exists to test the leakage harness, not to select a model — that
+is ML-08's job. Within that scope, over ten grouped splits:
 
-AUC averages **0.502** against a chance level of 0.500 and beats chance on **5 of 10** seeds.
-Precision@50 averages 0.408 against a mean base rate of 0.391 — a lift of **1.04x**, i.e. none.
-
-> ⚠️ **An earlier draft of this report claimed a 1.72x lift and a sub-chance AUC of 0.426.** Both
-> came from a single split (`random_state=42`), whose Precision@50 of 0.860 falls *outside* the
-> entire seed 0–9 range. Every conclusion built on it — the "two metrics disagree" framing, the
-> "3.6 standard deviations" — was an artefact of one favourable draw. It is recorded here rather
-> than quietly deleted, because the mistake is the lesson: **a single grouped split cannot support
-> a claim either way on this dataset.**
-
-**Per-client evaluation at K = 100 — the decision-matching metric.** Same ten splits, ranking
-*within* each held-out client rather than in one global pile:
-
-| | Precision@100 | Recall@100 |
+| | mean | range |
 |---|---|---|
-| one global queue | 0.407 | **1.1%** |
-| per client | 0.445 | **48.4%** |
-| base rate | 0.391 | — |
+| test base rate | 0.413 | 0.259 – 0.539 |
+| AUC | **0.502** | 0.465 – 0.534 |
+| Precision@50 | 0.404 | 0.260 – 0.620 |
 
-**Recall improves ~46x.** A global queue cannot cover 42 clients at any realistic capacity; a
-per-client queue reaches roughly half of all real declines at the entry audit tier. The queue
-design is now defensible.
+AUC averages 0.502 against a chance level of 0.500, beating chance on 5 of 10 seeds.
+**This is a statement about a linear probe, not about the problem** — the reference pipeline's own
+comparison puts logistic regression last of three (Precision@50 0.400 against a random forest's
+0.740), so a tree may find structure this cannot. ML-08 settles that.
 
-**Precision does not follow.** Per-client Precision@100 is 0.445 against a 0.391 base rate — a
-lift of **1.14x**, beating its own base rate on 8 of 10 splits. Re-scoping fixes *deployment
-viability*; it does not create discriminative power. An earlier note speculated that per-client
-ranking might repair the sub-chance AUC on its own — it does not. Scope was a capacity error; the
-flat ranking is a separate, unresolved signal problem.
+> ⚠️ **An earlier draft claimed a 1.72x lift from a single split** (`random_state=42`), whose
+> Precision@50 fell outside the entire seed 0–9 range. It is recorded rather than deleted: a single
+> grouped split cannot support a claim either way on this dataset.
 
+**Queue scope is settled, and it matters more than the model.** Ranking *within* each client rather
+than in one global pile lifts recall from **1.2% to 48.5%** at K=100. Precision does not
+follow — per-client Precision@100 is 0.444, a lift of 1.07x — so the scope fix makes the
+queue shippable without making the ordering informative.
 
-**Why the variance is so large.** `GroupShuffleSplit(test_size=0.2)` holds out 20% of *clients*,
-not of pages, and client sizes run from 711 to 24,418 pages. The realised test set ranges from
-**1,339 to 50,516 pages** — 1.2% to 43.7% of the cohort. Swapping one large client moves the base
-rate by up to 26 points before any model is involved. The split, not the features, is the dominant
-source of variance.
+**Variance, and why single splits are worthless here.** `GroupShuffleSplit` holds out 20% of
+*clients*, not pages, and client sizes span 711 to 24,418. Realised test sets range from 1,339 to
+50,516 pages. Any baseline-versus-model comparison in ML-07/ML-08 must run on the *same* repeated
+splits, or the difference measured is seed noise. Figures are stable only because the source query
+carries `ORDER BY content_hash_id`.
 
-**Consequences for the rest of the track.** Report `GroupKFold` or repeated-seed mean ± range,
-never a single split. Any baseline-versus-model comparison in ML-07/ML-08 must run on the *same*
-repeated splits, or the difference measured will be seed noise.
-
-**Reproducibility.** These figures are stable only because the source query carries
-`ORDER BY content_hash_id`. Without it DuckDB may return rows in any order, so a fixed seed still
-produced different splits between runs — Precision@20's mean drifted across 0.435, 0.440 and 0.445
-on three runs of identical code. Two consecutive runs now match byte for byte.
-
-**Open hypotheses for ML-06.** Five, each falsifiable, none yet tested: client-level sign flips
-(partly answered — client choice dominates); weak page-level label signal; cohort selection via the
-`trend_recent_impr > 0` filter; wrong evaluation scope (global versus per-client queue); and whether
-**CTR is usable in this release at all** — positions 1–3 measure 0.40% CTR against the data
-dictionary's documented ≈2.78%, flat at every volume floor, and the starter CSV reproduces the same
-flat curve, so it is not a pseudonymization artefact.
-
-**This is a legitimate result, not a failure.** The lane guide is explicit that a well-understood
-"no effect" is valid. What was not legitimate was reporting one seed as though it were the answer.
+**Two feature groups contribute nothing.** Dropping the eight `dim_content` columns that describe
+July 2026 state moves AUC by +0.002; adding a point-in-time reconstruction of freshness moves it
+-0.002.
 
 **Error analysis:** **NOT YET DONE** — ML-09 (`w06_validation_audit.ipynb`).
 
@@ -233,20 +213,41 @@ flat curve, so it is not a pseudonymization artefact.
 
 ## 6. Interpretation
 
-**NOT YET DONE** — ML-06 (`w04_signal_audit.ipynb`) and ML-09.
+**The label is measuring mean reversion, not decline.** This is the central finding, established in
+ML-06 on two independent decision points.
 
-What is known: feature coefficients are dominated by `char_count` (−1.42) and `word_count`
-(+1.23), which is a collinearity artefact (r = 0.934) rather than a finding about content
-length. No feature shows a suspicious standalone dominance.
+`future_change_pct` compares the future window against `trend_recent_impr`. A page's "peak ratio" —
+its recent 30-day rate divided by its own 90-day rate — has that *same quantity in its numerator*.
+So a page with an unusually strong recent month scores high on one and low on the other
+arithmetically, before any fact about the page enters. Decline rate by peak ratio:
 
-The honest headline so far is a **negative result on ranking, alongside a solved design problem**.
-Across ten grouped splits this feature set cannot rank declining pages better than chance (mean AUC
-0.502; per-client Precision@100 lift 1.14x). Re-scoping the queue per client raised recall from 1.1%
-to 48.4% — that part is settled and the queue design is defensible. What sits inside the queue is
-not: the ordering is still no better than random. Whether the cause is the features, the label, the
-cohort, or unusable CTR is unresolved and is ML-06's work.
+| peak ratio | D1 declining | D2 declining |
+|---|---|---|
+| below own norm | **7.91%** | **10.23%** |
+| 1.5–2.0× norm | 54.15% | 77.09% |
 
----
+A ~7x gradient on both dates. And **67.9% of the D1 cohort sits above its own norm**, so most
+of it is measured from an inflated baseline: "decline" substantially records a return to normal.
+
+**This explains the rest.** Prior trend does not predict future decline — the rate is flat at
+52.88%–55.56% across the entire eligible trend range on D1. A near-coin-flip target is exactly
+what a chance-level probe would produce, with no feature at fault.
+
+**CTR is not usable in this release.** Positions 1–3 measure 0.30% (D1) and 0.39% (D2)
+against the ≈2.78% documented in `docs/data-dictionary.md` — 7–9x below FlyRank's own figure, flat
+across rank bands, and reproduced in the starter CSV, so it is not an artefact of the warehouse
+release. Every CTR-derived feature and the position-banded peer comparison are unreliable until
+that gap is reconciled.
+
+**FlyRank's `page_one_decay_risk` flag does not select at-risk pages** against this label: lift
+1.01 at D1 and 0.91 at D2 — at the second decision point it flags pages that decline
+*less* than average. Read carefully, this condemns the pairing rather than the rule: the flag
+encodes slow editorial decay while our label captures fast statistical reversion. A rule failing
+against a compromised label is weak evidence against the rule.
+
+**A freshness relationship does exist, but bounded.** On the subset where the update date is exact,
+decline rises with staleness to about 180 days and then flattens — MIXED, matching the shape the
+Week 4 lecture found in its own example. Enough to justify a freshness *rule*; far too weak to rank on.
 
 ## 7. Recommendation
 
