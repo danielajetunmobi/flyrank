@@ -118,9 +118,15 @@ five `has_*` missingness flags. Categorical encoding (`main_intent`, `content_ty
 `competition_level`) is deferred to the modelling stage.
 
 **Missing-value policy.** Flag first, then fill — never a blind zero where zero is a meaningful
-extreme. `gsc_avg_position` is median-filled behind `has_position_data` because 0 would read as
-*better than rank 1*; `ctr` is safely zero-filled because 56.8% of tracked pages genuinely have
-0 CTR.
+extreme. `has_*` indicators are computed before any fill, so "unknown" and "genuinely zero" stay
+distinguishable; `ctr` is safely zero-filled because 56.8% of tracked pages genuinely have 0 CTR.
+
+**Position is zero-based.** `gsc_avg_position` follows GSC's bulk-export convention where **0 is
+the top rank**, so average position is `SUM(sum_position)/SUM(impressions) + 1`
+([Google's reference](https://support.google.com/webmasters/answer/12917991)). An earlier draft
+applied the starter CSV's rule that `0` means *missing* and filtered those rows out — discarding
+each page's best days for 53.4% of the cohort. ML-05 contains the six-check experiment that caught
+it.
 
 **Model choice:** **NOT YET DONE** — ML-08 (`w05_model.ipynb`). Only a logistic-regression probe
 has been run so far, as a leakage harness rather than as a candidate model.
@@ -135,47 +141,89 @@ has been run so far, as a leakage harness rather than as a candidate model.
 pages appear on both sides. Justified empirically, not by assertion: the same features on a
 random row split score **+0.169 AUC higher**, and that gap is memorised client structure, not skill.
 
-**Metric.** Precision@50, matching a specialist's realistic weekly review capacity, reported
-next to the base rate and recall (because section 1 established that missed signals cost more
-than false flags).
+**Metric.** Precision@K on a **per-client** queue, **K = 100**, monthly — reported next to the
+base rate and recall, averaged over repeated splits rather than one.
 
-**Result so far — the two metrics disagree, and that is the headline.**
+**Both parameters are decided, not assumed.** FlyRank's public pricing sells *"Monthly SEO audits —
+up to 100 pages scanned"* per account (100 → 250 → 500 → unlimited by tier), with dedicated account
+managers per brand. Work is organised by account, so the queue is. K = 100 is the entry tier, the
+most conservative defensible choice. Monthly matches the audit cadence and aligns with the 30-day
+label window, so there is no sliding-horizon problem.
 
-| Metric | Value | Verdict |
+Earlier drafts used a *global* queue at K = 50 on a *weekly* cadence. All three were wrong: K = 50
+sits below even the smallest tier, and the weekly reading came from a lecture's repeated *"this
+week"*, which describes the team's working rhythm rather than the client deliverable. `w02` §3
+carries the capacity arithmetic showing per-client scoping is worth roughly two orders of magnitude
+of recall at the same K.
+
+Residual uncertainty, stated plainly: this rests on public pricing, not internal process
+documentation. "Pages scanned" in an audit may be a wider funnel than pages actually refreshed —
+content credits bound the latter. Our output is a review queue, so the audit figure is the right
+analogue. If that operational number differs, K moves; the per-client scoping does not.
+
+**Result: no demonstrable signal.** Ten grouped splits, identical pipeline, only the seed changed:
+
+| | mean | range | spread |
+|---|---|---|---|
+| test base rate | 0.391 | 0.259 – 0.515 | 0.256 |
+| **AUC** | **0.502** | 0.457 – 0.549 | 0.092 |
+| Precision@20 | 0.440 | 0.300 – 0.650 | 0.350 |
+| **Precision@50** | **0.408** | 0.240 – 0.660 | 0.420 |
+
+AUC averages **0.502** against a chance level of 0.500 and beats chance on **5 of 10** seeds.
+Precision@50 averages 0.408 against a mean base rate of 0.391 — a lift of **1.04x**, i.e. none.
+
+> ⚠️ **An earlier draft of this report claimed a 1.72x lift and a sub-chance AUC of 0.426.** Both
+> came from a single split (`random_state=42`), whose Precision@50 of 0.860 falls *outside* the
+> entire seed 0–9 range. Every conclusion built on it — the "two metrics disagree" framing, the
+> "3.6 standard deviations" — was an artefact of one favourable draw. It is recorded here rather
+> than quietly deleted, because the mistake is the lesson: **a single grouped split cannot support
+> a claim either way on this dataset.**
+
+**Per-client evaluation at K = 100 — the decision-matching metric.** Same ten splits, ranking
+*within* each held-out client rather than in one global pile:
+
+| | Precision@100 | Recall@100 |
 |---|---|---|
-| AUC (whole ranking) | 0.426 | **worse** than the 0.500 chance level |
-| Precision@50 (top of queue) | 0.580 vs. 33.7% base rate | **1.72x** better than random |
-| Recall@50 | 0.66% | catches 29 of 4,403 real declines |
+| one global queue | 0.407 | **1.1%** |
+| per client | 0.445 | **48.4%** |
+| base rate | 0.391 | — |
 
-Both numbers are correct; they measure different things. Across the full ranking of 13,078
-held-out pages the ordering is slightly inverted. But the **top 50** — the only part a specialist
-ever reads — is genuinely enriched: 29 real declines where random selection returns ~17, roughly
-3.6 standard deviations above chance at this base rate.
+**Recall improves ~46x.** A global queue cannot cover 42 clients at any realistic capacity; a
+per-client queue reaches roughly half of all real declines at the entry audit tier. The queue
+design is now defensible.
 
-Precision@50 is the metric that governs, because section 1 committed to it *before* any result
-was seen, for the concrete reason that it matches a specialist's weekly review capacity. Had this
-work reported AUC alone it would have concluded "no signal, stop" — which would have been wrong.
+**Precision does not follow.** Per-client Precision@100 is 0.445 against a 0.391 base rate — a
+lift of **1.14x**, beating its own base rate on 8 of 10 splits. Re-scoping fixes *deployment
+viability*; it does not create discriminative power. An earlier note speculated that per-client
+ranking might repair the sub-chance AUC on its own — it does not. Scope was a capacity error; the
+flat ranking is a separate, unresolved signal problem.
 
-The counterweight is recall. Section 1 argued a missed decline costs more than a false flag; a
-queue that surfaces 0.66% of real declines is precise at the top but barely dents the problem it
-was built for. Reconciling those two facts is a live question for ML-09.
 
-**Why the ranking as a whole is sub-chance — three open hypotheses, none yet tested.** These are
-signal-audit questions, so they are recorded here and answered in ML-06 rather than asserted now:
+**Why the variance is so large.** `GroupShuffleSplit(test_size=0.2)` holds out 20% of *clients*,
+not of pages, and client sizes run from 711 to 24,418 pages. The realised test set ranges from
+**1,339 to 50,516 pages** — 1.2% to 43.7% of the cohort. Swapping one large client moves the base
+rate by up to 26 points before any model is involved. The split, not the features, is the dominant
+source of variance.
 
-1. **The relationship flips between clients** — a pattern holding in the training clients may
-   point the wrong way in held-out ones. *Test:* fit per client, compare coefficient signs. The
-   +0.170 random-vs-grouped gap is at least consistent with this.
-2. **The label carries little page-level signal** — *test:* correlate `prior_trend_pct` with
-   `future_change_pct`, and compare decline rates across prior-trend buckets. A flat decline rate
-   regardless of prior behaviour would mean the target is near-coin-flip by construction.
-3. **Cohort selection** — the cohort keeps only pages with `trend_recent_impr > 0`, i.e. active in
-   the last 30 days. That filter may preferentially select pages having an unusually strong month,
-   and unusual months end. *Test:* re-compute the base rate with the filter relaxed; compare
-   established vs. newly-active pages.
+**Consequences for the rest of the track.** Report `GroupKFold` or repeated-seed mean ± range,
+never a single split. Any baseline-versus-model comparison in ML-07/ML-08 must run on the *same*
+repeated splits, or the difference measured will be seed noise.
 
-**No number is quoted for any of these**, because no cell in this repo computes them yet.
-Producing them is ML-06's opening task.
+**Reproducibility.** These figures are stable only because the source query carries
+`ORDER BY content_hash_id`. Without it DuckDB may return rows in any order, so a fixed seed still
+produced different splits between runs — Precision@20's mean drifted across 0.435, 0.440 and 0.445
+on three runs of identical code. Two consecutive runs now match byte for byte.
+
+**Open hypotheses for ML-06.** Five, each falsifiable, none yet tested: client-level sign flips
+(partly answered — client choice dominates); weak page-level label signal; cohort selection via the
+`trend_recent_impr > 0` filter; wrong evaluation scope (global versus per-client queue); and whether
+**CTR is usable in this release at all** — positions 1–3 measure 0.40% CTR against the data
+dictionary's documented ≈2.78%, flat at every volume floor, and the starter CSV reproduces the same
+flat curve, so it is not a pseudonymization artefact.
+
+**This is a legitimate result, not a failure.** The lane guide is explicit that a well-understood
+"no effect" is valid. What was not legitimate was reporting one seed as though it were the answer.
 
 **Error analysis:** **NOT YET DONE** — ML-09 (`w06_validation_audit.ipynb`).
 
@@ -191,12 +239,12 @@ What is known: feature coefficients are dominated by `char_count` (−1.42) and 
 (+1.23), which is a collinearity artefact (r = 0.934) rather than a finding about content
 length. No feature shows a suspicious standalone dominance.
 
-The honest headline so far is **mixed, and metric-dependent**: no page-level signal is
-demonstrable across the ranking as a whole (sub-chance AUC), but the top of the queue is enriched
-1.72x over the base rate. Whether that top-end lift is a small real effect or an artefact of how
-the cohort was selected is unresolved — see the three hypotheses in section 5. Per the lane guide,
-a well-understood "no effect" is a valid result, and so is a well-understood "small effect, only
-at the top"; neither can be claimed from a single split at a single decision point.
+The honest headline so far is a **negative result on ranking, alongside a solved design problem**.
+Across ten grouped splits this feature set cannot rank declining pages better than chance (mean AUC
+0.502; per-client Precision@100 lift 1.14x). Re-scoping the queue per client raised recall from 1.1%
+to 48.4% — that part is settled and the queue design is defensible. What sits inside the queue is
+not: the ordering is still no better than random. Whether the cause is the features, the label, the
+cohort, or unusable CTR is unresolved and is ML-06's work.
 
 ---
 
