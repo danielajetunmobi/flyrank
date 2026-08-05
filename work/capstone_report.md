@@ -213,10 +213,20 @@ comparison puts logistic regression last of three (Precision@50 0.400 against a 
 > Precision@50 fell outside the entire seed 0–9 range. It is recorded rather than deleted: a single
 > grouped split cannot support a claim either way on this dataset.
 
-**Queue scope is settled, and it matters more than the model.** Ranking *within* each client rather
-than in one global pile lifts recall from **1.2% to 48.5%** at K=100. Precision does not
-follow — per-client Precision@100 is 0.444, a lift of 1.07x — so the scope fix makes the
-queue shippable without making the ordering informative.
+**Queue scope is settled, and it matters — but less than an earlier draft claimed.** Ranking
+*within* each client rather than in one global pile lifts pooled recall from **1.25% to 3.76%** at
+K=100, roughly 3x. Precision does not follow — per-client Precision@100 is 0.420 against a 0.413
+base rate, a lift of **1.02x**.
+
+> ⚠️ **Corrected.** This previously read "1.2% to 48.5%", a ~39x claim. The 48.5% was an unweighted
+> mean of per-client recall rates set against a pooled global rate — not the same quantity, and
+> unstable enough that one seed read 0.819 off five clients. Both sides are pooled now.
+
+**Recall stays low because capacity binds, not because the model is weak.** With a median 422
+declines per client, a 100-page audit cannot catch more than 100 however well it ranks; the
+perfect-model pooled ceiling is 4.2% at K=100. A better model in ML-08 buys precision, not coverage.
+This strengthens the `w01` asymmetry: most declines are missed regardless, so the reviewed pages
+must be the right ones.
 
 **Variance, and why single splits are worthless here.** `GroupShuffleSplit` holds out 20% of
 *clients*, not pages, and client sizes span 711 to 24,418. Realised test sets range from 1,339 to
@@ -239,11 +249,35 @@ July 2026 state moves AUC by +0.002; adding a point-in-time reconstruction of fr
 **The label is dominated by the arithmetic of its own denominator.** This is the central finding,
 established in ML-06 on two decision points and then stress-tested with a simulation.
 
-`future_change_pct` divides by `trend_recent_impr`. A page's "peak ratio" — its recent 30-day rate
-over its own 90-day rate — is determined by that same quantity. Selecting on a high recent window
-and then measuring change *from* it manufactures a decline gradient before any page behaviour enters.
-Observed decline rate by peak ratio runs 7.91% → 54.15% on D1 and 10.23% → 77.09% on D2, with
-**67.9% of the D1 cohort sitting above its own norm**.
+**Two artefacts, not one — and the larger is the label's own definition.**
+
+`future_decline` was defined as `(~was_declining) & (future_change_pct <= -20)`. The first clause
+scores every already-declining page as False. `was_declining` and `peak_ratio` both compare the same
+recent window against the same older history, so the exclusion is not spread evenly across the peak
+bands — it lands almost entirely in the low ones, which is precisely where the reported gradient
+begins:
+
+| peak_ratio | % `was_declining` | as published | exclusion removed |
+|---|---|---|---|
+| below own norm | **86.9%** | 7.91% | **55.3%** |
+| 1.0–1.5× | 9.2% | 49.65% | 54.7% |
+| >2.0× | **0.0%** | 53.36% | 53.36% |
+| **spread** | | **46.2 pts** | **5.3 pts** |
+
+Dropping the clause collapses the gradient from **46.2 to 5.3 points** at D1 and **66.9 to 7.9** at
+D2 — the exclusion accounts for **89%** and **88%**. `Spearman(peak_ratio, continuous target) =
+−0.044`. The "7x gradient" reported earlier is about 1.1x, and it points the other way: pages above
+their own norm decline at 53.4% against 55.3% below it.
+
+The **second** artefact is real and independent: `future_change_pct` divides by `trend_recent_impr`,
+the same quantity that sets peak ratio, so selecting on a high recent window and measuring change
+*from* it manufactures gradient before any behaviour enters. The null simulation establishes this on
+exclusion-free data. **67.9% of the D1 cohort sits above its own norm** — a property of the cohort
+filter that holds regardless of label.
+
+**This is a correction to an earlier version of this section**, which reported the 7x gradient as the
+central finding and attributed all of it to the denominator. The denominator artefact is real but
+secondary; the definitional one dominates. Both are recorded rather than replaced.
 
 **It is an artefact, not a behaviour — and an earlier draft of this report got that wrong.** The
 first version called it *mean reversion*, which asserts that pages return to normal after an unusual
@@ -257,6 +291,11 @@ most extreme band declines *least* (38.5%) where the null predicts it should dec
 Real pages decay far *less* than chance predicts, which matches the autocorrelation evidence:
 consecutive 30-day means correlate at **r ≈ 0.89**, so the recent window is a good estimate of a
 page's level rather than noise. Persistent levels are exactly why observed decay undershoots the null.
+
+The simulation scores `chg <= -0.20` on every page and never applies the exclusion, so its 12.6-point
+observed spread was never comparable with Test 3's 46.2 — a point an earlier draft explained away as
+sparse pages suffering the artefact more than dense ones. The exclusion-free numbers are 5.3 points
+on the full cohort and 12.6 on the dense subset. Both are small; the gap is cohort, not behaviour.
 
 **Why the distinction decides ML-07.** If genuine reversion drove this, no label redefinition would
 escape it. Because it is arithmetic, a label built on an independent baseline — or on a fitted trend
