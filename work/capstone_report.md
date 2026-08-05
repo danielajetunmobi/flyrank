@@ -104,14 +104,26 @@ client-grouped split and the *same* metric as any model, so the comparison is fa
 
 ## 4. Model / analysis
 
-**Target definition.** Three binary targets, each defined only on the population where the
-question is meaningful, rather than one blurred multi-class label:
+**Target definition.** **Amended 2026-08-05 after ML-06.** A single continuous target replaces the
+three binary labels:
 
-| Target | Population | Positive when |
-|---|---|---|
-| `future_decline` | was **not** already declining | future change ≤ −20% |
-| `future_recovery` | **was** already declining | future change ≥ +20% |
-| `future_momentum` | was **not** already declining | future change ≥ +20% |
+```
+target = log( future_daily_rate / baseline_daily_rate )
+```
+
+The original design used three binary targets — `future_decline`, `future_recovery`,
+`future_momentum` — each defined on the population where it was meaningful. That is superseded for
+four reasons: the ±20% threshold was inherited rather than derived; binarising discarded magnitude,
+so a 21% dip and a 95% collapse became the same label while −19% and −21% became opposite classes;
+the cohort was split three ways when one regression can use every row; and the threshold created a
+definitional artefact where `future_decline` scored exactly 0.00% for already-declining pages by
+construction. Sign now carries what the three labels carried. The log makes a target running
+−100% to +94,550% symmetric about zero.
+
+This fixes the label's *design*. It does not fix its *denominator*: ML-06 showed any ratio against
+`trend_recent_impr` inherits a 79.0-point phantom gradient against 12.6 observed. `baseline_daily_rate`
+must therefore be an independent baseline rather than the window used to select the cohort. Both
+corrections land in ML-07.
 
 **Windows.** Features from the trailing 90 days before the decision point; "already declining"
 from a 30-vs-30-day split of that window, matching FlyRank's own `trend_pct` convention rather
