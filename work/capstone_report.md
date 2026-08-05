@@ -213,31 +213,47 @@ July 2026 state moves AUC by +0.002; adding a point-in-time reconstruction of fr
 
 ## 6. Interpretation
 
-**The label is measuring mean reversion, not decline.** This is the central finding, established in
-ML-06 on two independent decision points.
+**The label is dominated by the arithmetic of its own denominator.** This is the central finding,
+established in ML-06 on two decision points and then stress-tested with a simulation.
 
-`future_change_pct` compares the future window against `trend_recent_impr`. A page's "peak ratio" —
-its recent 30-day rate divided by its own 90-day rate — has that *same quantity in its numerator*.
-So a page with an unusually strong recent month scores high on one and low on the other
-arithmetically, before any fact about the page enters. Decline rate by peak ratio:
+`future_change_pct` divides by `trend_recent_impr`. A page's "peak ratio" — its recent 30-day rate
+over its own 90-day rate — is determined by that same quantity. Selecting on a high recent window
+and then measuring change *from* it manufactures a decline gradient before any page behaviour enters.
+Observed decline rate by peak ratio runs 7.91% → 54.15% on D1 and 10.23% → 77.09% on D2, with
+**67.9% of the D1 cohort sitting above its own norm**.
 
-| peak ratio | D1 declining | D2 declining |
-|---|---|---|
-| below own norm | **7.91%** | **10.23%** |
-| 1.5–2.0× norm | 54.15% | 77.09% |
+**It is an artefact, not a behaviour — and an earlier draft of this report got that wrong.** The
+first version called it *mean reversion*, which asserts that pages return to normal after an unusual
+month. That is testable, and it fails. Replacing each page's real future window with a random 30-day
+window from its **own history** — preserving level and volatility, destroying any information about
+what happened next — produces a gradient of **79.0 points**, against **12.6 points** observed on the same pages —
+pure arithmetic is **6.3x steeper than reality**. The observed pattern is not even monotonic: the
+most extreme band declines *least* (38.5%) where the null predicts it should decline *most*
+(87.9%).
 
-A ~7x gradient on both dates. And **67.9% of the D1 cohort sits above its own norm**, so most
-of it is measured from an inflated baseline: "decline" substantially records a return to normal.
+Real pages decay far *less* than chance predicts, which matches the autocorrelation evidence:
+consecutive 30-day means correlate at **r ≈ 0.89**, so the recent window is a good estimate of a
+page's level rather than noise. Persistent levels are exactly why observed decay undershoots the null.
+
+**Why the distinction decides ML-07.** If genuine reversion drove this, no label redefinition would
+escape it. Because it is arithmetic, a label built on an independent baseline — or on a fitted trend
+rather than a ratio of two windows — escapes it cleanly.
 
 **This explains the rest.** Prior trend does not predict future decline — the rate is flat at
 52.88%–55.56% across the entire eligible trend range on D1. A near-coin-flip target is exactly
 what a chance-level probe would produce, with no feature at fault.
 
-**CTR is not usable in this release.** Positions 1–3 measure 0.30% (D1) and 0.39% (D2)
-against the ≈2.78% documented in `docs/data-dictionary.md` — 7–9x below FlyRank's own figure, flat
-across rank bands, and reproduced in the starter CSV, so it is not an artefact of the warehouse
-release. Every CTR-derived feature and the position-banded peer comparison are unreliable until
-that gap is reconciled.
+**CTR levels are not usable; the CTR–position *ordering* partly is.** Weighted CTR for positions
+1–3 measures 0.30% (D1) and 0.39% (D2) against the ≈2.78% documented in `docs/data-dictionary.md` —
+7–9x below FlyRank's own figure, flat across rank bands, and reproduced in the starter CSV, so not a
+warehouse artefact. Absolute CTR and any threshold built on it are therefore unreliable.
+
+But rank-based correlation between position and CTR is **−0.234** on the starter CSV and **−0.217**
+on the warehouse (−0.239 above 1,000 impressions) — consistent, correctly signed, and roughly **3x
+stronger than the Pearson value of −0.080** recorded in the Week 1 notebook. Heavy tails
+(`ctr` p99/p50 ≈ 105) make Pearson understate it. So position does inform CTR *ordering*; it is the
+absolute level that cannot be trusted. Weighted CTR looks flat because large pages dominate it,
+while Spearman weights every page equally.
 
 **FlyRank's `page_one_decay_risk` flag does not select at-risk pages** against this label: lift
 1.01 at D1 and 0.91 at D2 — at the second decision point it flags pages that decline
