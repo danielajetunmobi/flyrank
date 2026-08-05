@@ -162,8 +162,19 @@ has been run so far, as a leakage harness rather than as a candidate model.
 pages appear on both sides. Justified empirically, not by assertion: the same features on a
 random row split score **+0.169 AUC higher**, and that gap is memorised client structure, not skill.
 
-**Metric.** Precision@K on a **per-client** queue, **K = 100**, monthly — reported next to the
-base rate and recall, averaged over repeated splits rather than one.
+**Metric.** **Amended 2026-08-05.** The target is now continuous, so a *base rate* — the share of
+the positive class — is undefined, and so is ROC-AUC. Both are replaced:
+
+- **Primary: Spearman correlation** between predicted and actual change. The task is ranking, and
+  rank correlation measures it directly without inventing a cut-off.
+- **Queue metric: Precision@K** on a **per-client** queue, **K = 100**, monthly — unchanged, except
+  that the cut defining "actually declined" is now an explicit *evaluation* parameter rather than a
+  property of the label.
+
+The decision remains binary — review or don't — so a threshold still exists; it has moved from
+training to evaluation. **Every figure in this section was measured under the superseded binary
+label** and is kept as a description of that design, not of the current one. Re-measurement is
+ML-07's first task.
 
 **Both parameters are decided, not assumed.** FlyRank's public pricing sells *"Monthly SEO audits —
 up to 100 pages scanned"* per account (100 → 250 → 500 → unlimited by tier), with dedicated account
