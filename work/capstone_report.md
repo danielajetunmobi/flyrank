@@ -41,7 +41,7 @@ starter data contains `trend_pct` values as extreme as 44,900%, produced entirel
 denominators. Weighing percentage change *together with* prior volume, position, age and
 freshness is the part a hand-written rule does badly. Verified separately: even *defining*
 "already declining" is design-sensitive — a 30-vs-30-day window and a 45-vs-45-day window
-disagree on **21.9%** of pages.
+disagree on **22.3%** of pages at a −20% cut, and order them at only **Spearman +0.565**.
 
 *Source: `work/notebooks/w01_research_question.ipynb`, `w02_ml_task_framing.ipynb`.*
 
@@ -69,10 +69,10 @@ this repo is public.
 **Leakage risks considered.** Timeline verified: every feature is drawn from
 2025-12-31 → 2026-03-30; the label window opens 2026-03-31; no overlap. Three explicit
 attacks were run and behave as they should — injecting the label-generating ratio drives AUC
-to 0.92, injecting a raw future count leaks weakly, and a random split inflates the score by
-+0.169 over a client-grouped split. Feature importances were inspected for a suspiciously
-dominant term; the largest (`char_count` / `word_count`, opposite signs) is **multicollinearity**
-(r = 0.934), not a leak.
+to 0.92, injecting a raw future count leaks weakly, and a random row split inflates the score by
+**+0.091** AUC over a client-grouped one, on the same ten seeds. Feature importances were inspected
+for a suspiciously dominant term; the largest (`char_count` / `word_count`, opposite signs) is
+**multicollinearity** — they correlate at **r = 0.997** — not a leak.
 
 **A leak the ML-05 hunt missed.** `dim_content` is an **export-time snapshot**, not a
 point-in-time record: `content_updated_date` falls *after* the decision point for **77.3%** of
@@ -182,7 +182,7 @@ has been run so far, as a leakage harness rather than as a candidate model.
 
 **Split.** `GroupShuffleSplit` on `client_hash_id` — whole clients held out, so no client's
 pages appear on both sides. Justified empirically, not by assertion: the same features on a
-random row split score **+0.169 AUC higher**, and that gap is memorised client structure, not skill.
+random row split score **+0.091 AUC higher** on every one of ten seeds, and that gap is memorised client structure, not skill.
 
 **Metric.**
 
@@ -240,8 +240,8 @@ This strengthens the `w01` asymmetry: most declines are missed regardless, so th
 must be the right ones.
 
 **Variance, and why single splits are worthless here.** `GroupShuffleSplit` holds out 20% of
-*clients*, not pages, and client sizes span 711 to 24,418. Realised test sets range from 1,339 to
-50,516 pages. Any baseline-versus-model comparison in ML-07/ML-08 must run on the *same* repeated
+*clients*, not pages, and client sizes span 711 to 24,418. Realised test sets range from 815 to
+47,661 pages. Any baseline-versus-model comparison in ML-07/ML-08 must run on the *same* repeated
 splits, or the difference measured is seed noise. Figures are stable only because the source query
 carries `ORDER BY content_hash_id`.
 
@@ -317,9 +317,10 @@ what a chance-level probe would produce, with no feature at fault.
 7–9x below FlyRank's own figure, flat across rank bands, and reproduced in the starter CSV, so not a
 warehouse artefact. Absolute CTR and any threshold built on it are therefore unreliable.
 
-But rank-based correlation between position and CTR is **−0.234** on the starter CSV and **−0.217**
-on the warehouse (−0.239 above 1,000 impressions) — consistent, correctly signed, and roughly **3x
-stronger than the Pearson value of −0.080** recorded in the Week 1 notebook. Heavy tails
+But rank-based correlation between position and CTR is **−0.288** across the cohort and **−0.231**
+above 1,000 impressions — correctly signed, stable across that filter, and about **3.6x stronger
+than the Pearson value of −0.080** recorded in the Week 1 notebook
+(`notebooks/01_first_look_and_discovery.ipynb`, outside this workspace). Heavy tails
 (`ctr` p99/p50 ≈ 105) make Pearson understate it. So position does inform CTR *ordering*; it is the
 absolute level that cannot be trusted. Weighted CTR looks flat because large pages dominate it,
 while Spearman weights every page equally.

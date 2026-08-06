@@ -9,3 +9,8 @@ Ground rules for this repo:
 - One task per conversation; finish and verify before starting the next.
 - Never commit datasets (CI blocks them). Never print private data, client names, or raw queries.
 - The intern validates your output — end each task by running the notebook top to bottom.
+- Then run `python work/tools/check_claims.py`. It fails if any number written in prose does not
+  appear in the output of a cell that ran. Analysis done in a scratch script is fine; a number
+  that reaches the notebook without being recomputed there is not. Every violation found so far
+  was a real defect — stale figures, transposed digits, and one claim about a column that does
+  not exist. Fix the number or compute it; only add to `ALLOWED` with a written reason.
