@@ -283,9 +283,10 @@ begins:
 | **spread** | | **46.2 pts** | **5.3 pts** |
 
 Dropping the clause collapses the gradient from **46.2 to 5.3 points** at D1 and **66.9 to 7.9** at
-D2 — the exclusion accounts for **89%** and **88%**. `Spearman(peak_ratio, continuous target) =
-−0.044`. The "7x gradient" reported earlier is about 1.1x, and it points the other way: pages above
-their own norm decline at 53.4% against 55.3% below it.
+D2 — the exclusion accounts for **89%** and **88%**. `Spearman(peak_ratio, asinh target)` is
+**−0.0665** (D1) and **−0.1505** (D2) — weak on both dates and not stable between them. The "7x
+gradient" reported earlier is about 1.1x, and it points the other way: pages above their own norm
+decline at 53.4% against 55.3% below it.
 
 The **second** artefact is real and independent: `future_change_pct` divides by `trend_recent_impr`,
 the same quantity that sets peak ratio, so selecting on a high recent window and measuring change
@@ -306,9 +307,11 @@ pure arithmetic is **6.3x steeper than reality**. The observed pattern is not ev
 most extreme band declines *least* (38.5%) where the null predicts it should decline *most*
 (87.9%).
 
-Real pages decay far *less* than chance predicts, which matches the autocorrelation evidence:
-consecutive 30-day means correlate at **r ≈ 0.89**, so the recent window is a good estimate of a
-page's level rather than noise. Persistent levels are exactly why observed decay undershoots the null.
+Real pages decay far *less* than chance predicts, which matches the persistence in the series:
+consecutive 30-day means correlate at **Pearson 0.799 / Spearman 0.823** across the 70,013 dense
+pages, so the recent window is a reasonable estimate of a page's level rather than noise. Persistent
+levels are exactly why observed decay undershoots the null. *(An earlier draft said r ≈ 0.89; that
+figure was never computed on this cohort.)*
 
 The simulation scores `chg <= -0.20` on every page and never applies the exclusion, so its 12.6-point
 observed spread was never comparable with Test 3's 46.2 — a point an earlier draft explained away as
