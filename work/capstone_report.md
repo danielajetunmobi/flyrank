@@ -92,6 +92,17 @@ row-level dump.
 
 ---
 
+**Missingness follows `content_type`, so imputation is not neutral.** Four keyword columns —
+`search_volume`, `cpc`, `competition`, `backlinks` — run from **0% to 100% missing** across the three
+content types: present for every page of one type, absent for every page of another. `char_count` and
+`word_count` span 46 points, GA4 columns 15.6 by `main_intent` (29.8 by `content_type` at D2).
+
+A median fill on those columns therefore stamps the content type into the feature: every page of the
+missing type receives an identical value that a tree splits on immediately. The model would appear to
+use search volume while actually using content type. The `has_*` flags record *that* a value was
+missing, which is honest, but the filled column still carries the same fact in continuous disguise.
+ML-07 either drops those four columns or keeps them unimputed and lets the model handle NaN natively.
+
 ## 3. Baseline
 
 **NOT YET DONE** — produced by ML-07 (`w04_baseline_score.ipynb`).
@@ -315,7 +326,7 @@ what a chance-level probe would produce, with no feature at fault.
 **CTR levels are not usable; the CTR–position *ordering* partly is.** Weighted CTR for positions
 1–3 measures 0.30% (D1) and 0.39% (D2) against the ≈2.78% documented in `docs/data-dictionary.md` —
 7–9x below FlyRank's own figure, flat across rank bands, and reproduced in the starter CSV, so not a
-warehouse artefact. Absolute CTR and any threshold built on it are therefore unreliable.
+warehouse artefact. Absolute CTR and any threshold built on it are therefore unreliable. **It is not a broken denominator:** no page on either date has more clicks than impressions, and the pooled rate (0.305%) sits below even the mean of per-page rates (0.421%), so neither a mismatched window nor an averaging mistake explains the gap. It survives inside rank 1–3, where composition cannot account for it. This is a question for FlyRank about how 2.78% was computed.
 
 But rank-based correlation between position and CTR is **−0.288** across the cohort and **−0.231**
 above 1,000 impressions — correctly signed, stable across that filter, and about **3.6x stronger
@@ -334,6 +345,31 @@ against a compromised label is weak evidence against the rule.
 **A freshness relationship does exist, but bounded.** On the subset where the update date is exact,
 decline rises with staleness to about 180 days and then flattens — MIXED, matching the shape the
 Week 4 lecture found in its own example. Enough to justify a freshness *rule*; far too weak to rank on.
+
+**Pooling across clients destroyed the signal, and that is the most useful thing ML-06 found.**
+
+Every verdict above is computed on the pooled cohort. Rerun per client — the slice the signal-audit
+skill asks for and this project had skipped — the picture changes:
+
+| | D1 (17 clients ≥ 200 pages) | D2 (29 clients) |
+|---|---|---|
+| `Spearman(prior_trend, target)`, median client | **−0.116** | **−0.220** |
+| clients with \|ρ\| > 0.2 | **8 of 17** | **17 of 29** |
+| `Spearman(peak_ratio, target)`, median client | **−0.239** | **−0.231** |
+| clients with \|ρ\| > 0.2 | **9 of 17** | **20 of 29** |
+
+Pooled, `Spearman(peak_ratio, target)` is **−0.0665** at D1. The median client shows **−0.239** —
+three and a half times stronger. Clients differ in traffic scale, seasonality and content mix, so a
+relationship holding *inside* each one flattens when they are stacked.
+
+**This changes what "no signal" meant.** Test 1's flat table is real, but the conclusion drawn from
+it — that prior trend carries no information — held only for the pooled view. It also converts the
+per-client queue from a capacity decision into a modelling one: ranking within a client is the level
+at which the relationship exists, not merely what the audit budget allows.
+
+**For ML-07:** features must be client-relative, or the model must carry client as a grouping. Raw
+cross-client values will keep averaging the signal out. D1 shows 5 sign flips against D2's 1, so
+heterogeneity varies by period and needs rechecking at whatever decision point ML-07 trains on.
 
 ## 7. Recommendation
 
