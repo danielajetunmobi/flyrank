@@ -371,6 +371,23 @@ at which the relationship exists, not merely what the audit budget allows.
 cross-client values will keep averaging the signal out. D1 shows 5 sign flips against D2's 1, so
 heterogeneity varies by period and needs rechecking at whatever decision point ML-07 trains on.
 
+**The cohort filter inflates the decline rate, and `asinh` makes that fixable.** Relaxing
+`trend_recent_impr > 0 AND trend_baseline_impr > 0` and scoring every active page shows the cohort is
+**12.6 points more decline-heavy at D1** (65.8% against 53.2%) and 8.3 at D2. Both filters push the
+same way: `rec30 = 0` pages decline at **exactly 0.0%** — a page at zero cannot fall further, and 85%
+stay there — while `base30 = 0` pages decline at 46.6%, still below the cohort's 65.8%. The margin
+moves with the date, so no constant corrects it.
+
+That filter existed because a *ratio* needs a non-zero denominator. `asinh` does not, so ML-07 can
+readmit the 26,868 pages excluded at D1 — precisely the ones that already lost everything.
+
+**GA4 engagement carries no page-level signal.** `engaged_rate` correlates with the target at
+**+0.005** (D1) and **+0.009** (D2); `pages_per_session` and `scroll_per_session` flip sign between
+decision points. Unlike prior trend, a per-client rerun does not rescue it: median ρ of +0.037 and
++0.015, with 0 of 13 and 2 of 24 clients above \|ρ\| = 0.2. Dropping these features costs nothing and
+removes 13.9% missingness plus a category leak. `search_volume`, `cpc` and `competition` are left
+untested on purpose — absent for an entire content type, any correlation would measure the type.
+
 ## 7. Recommendation
 
 **NOT YET DONE** — ML-10 (`w07_action_playbook.ipynb`).
