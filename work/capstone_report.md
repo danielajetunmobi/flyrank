@@ -108,8 +108,26 @@ client-grouped split and the *same* metric as any model, so the comparison is fa
 three binary labels:
 
 ```
-target = log( future_daily_rate / baseline_daily_rate )
+target = asinh(future_daily_rate) - asinh(baseline_daily_rate)
 ```
+
+**Amended again 2026-08-06 after ML-06 Finding 3.** The first version of this used
+`log(future / baseline)`, which cannot represent a page reaching zero — `log(0) = -inf` — and that
+is **7.4% of the D1 cohort** (13.7% at D2). `asinh(x) = log(x + sqrt(x^2+1))` equals 0 at zero and
+converges to `log(2x)` for large x, so it behaves like the log ratio where the log ratio works
+(Spearman **+0.955** D1, **+0.901** D2, on rows where both are defined) while staying finite
+everywhere. It also deflates percentage swings at trivial volume, which the log ratio exaggerates:
+0.1 to 0.05 impressions/day reads as -0.693 under the log and -0.05 under `asinh`.
+
+**Dead pages get a second, separate treatment.** `went_to_zero AND prior_rate >= 1 impr/day` is
+reported as its own flag — **1,334 pages at D1 over 34 clients**. 87% of pages reaching zero were
+already carrying under one impression a day, so an ungated flag would bury the 136 that lost ten or
+more.
+
+The flag is **ranked by prior daily rate rather than merely listed**, because it does not reliably
+fit the audit budget: a median of 10 pages per client, but a tail reaching 195 (D1) and 663 (D2),
+with **4 clients at D1 and 9 at D2 exceeding K = 100**. Ranked, an overrun surfaces the largest
+losses; unranked, it would be least usable for the clients worst affected.
 
 The original design used three binary targets — `future_decline`, `future_recovery`,
 `future_momentum` — each defined on the population where it was meaningful. That is superseded for
