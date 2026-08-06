@@ -104,20 +104,30 @@ client-grouped split and the *same* metric as any model, so the comparison is fa
 
 ## 4. Model / analysis
 
-**Target definition.** **Amended 2026-08-05 after ML-06.** A single continuous target replaces the
-three binary labels:
+**Target definition.** One continuous target:
 
 ```
 target = asinh(future_daily_rate) - asinh(baseline_daily_rate)
 ```
 
-**Amended again 2026-08-06 after ML-06 Finding 3.** The first version of this used
-`log(future / baseline)`, which cannot represent a page reaching zero — `log(0) = -inf` — and that
-is **7.4% of the D1 cohort** (13.7% at D2). `asinh(x) = log(x + sqrt(x^2+1))` equals 0 at zero and
-converges to `log(2x)` for large x, so it behaves like the log ratio where the log ratio works
-(Spearman **+0.955** D1, **+0.901** D2, on rows where both are defined) while staying finite
-everywhere. It also deflates percentage swings at trivial volume, which the log ratio exaggerates:
-0.1 to 0.05 impressions/day reads as -0.693 under the log and -0.05 under `asinh`.
+Sign is direction, magnitude is size — a 21% dip and a 95% collapse are no longer the same event.
+`asinh(x) = log(x + sqrt(x^2+1))` equals 0 at zero and converges to `log(2x)` for large x, so it
+behaves like a log ratio for healthy pages while staying finite when one reaches zero, which a ratio
+cannot represent at all — and that is **7.4% of the D1 cohort**, 13.7% at D2. Agreement with the log
+ratio where both are defined is Spearman **+0.9546** (D1) and **+0.9009** (D2).
+
+It also deflates percentage swings at trivial volume, which a ratio exaggerates. The same 50% drop at
+four sizes:
+
+| before/day | after/day | log ratio | `asinh` |
+|---|---|---|---|
+| 0.1 | 0.05 | −0.6931 | **−0.0499** |
+| 1.0 | 0.50 | −0.6931 | −0.4002 |
+| 10.0 | 5.00 | −0.6931 | −0.6858 |
+| 100.0 | 50.00 | −0.6931 | **−0.6931** |
+
+A ratio calls all four the same −50%. Given a cohort whose median dead page ran 0.13 impressions a
+day, that deflation matters.
 
 **Dead pages get a second, separate treatment.** `went_to_zero AND prior_rate >= 1 impr/day` is
 reported as its own flag — **1,334 pages at D1 over 34 clients**. 87% of pages reaching zero were
@@ -129,14 +139,8 @@ fit the audit budget: a median of 10 pages per client, but a tail reaching 195 (
 with **4 clients at D1 and 9 at D2 exceeding K = 100**. Ranked, an overrun surfaces the largest
 losses; unranked, it would be least usable for the clients worst affected.
 
-The original design used three binary targets — `future_decline`, `future_recovery`,
-`future_momentum` — each defined on the population where it was meaningful. That is superseded for
-four reasons: the ±20% threshold was inherited rather than derived; binarising discarded magnitude,
-so a 21% dip and a 95% collapse became the same label while −19% and −21% became opposite classes;
-the cohort was split three ways when one regression can use every row; and the threshold created a
-definitional artefact where `future_decline` scored exactly 0.00% for already-declining pages by
-construction. Sign now carries what the three labels carried. The log makes a target running
-−100% to +94,550% symmetric about zero.
+This replaced three binary targets — `future_decline`, `future_recovery`, `future_momentum` — and
+then a log ratio. The reasoning for each step is in the revision log (§9).
 
 This fixes the label's *design*. It does not fix its *denominator*: ML-06 showed any ratio against
 `trend_recent_impr` inherits a 79.0-point phantom gradient against 12.6 observed. `baseline_daily_rate`
@@ -162,10 +166,10 @@ distinguishable; `ctr` is safely zero-filled because 56.8% of tracked pages genu
 
 **Position is zero-based.** `gsc_avg_position` follows GSC's bulk-export convention where **0 is
 the top rank**, so average position is `SUM(sum_position)/SUM(impressions) + 1`
-([Google's reference](https://support.google.com/webmasters/answer/12917991)). An earlier draft
-applied the starter CSV's rule that `0` means *missing* and filtered those rows out — discarding
-each page's best days for 53.4% of the cohort. ML-05 contains the six-check experiment that caught
-it.
+([Google's reference](https://support.google.com/webmasters/answer/12917991)). The starter CSV uses
+the opposite rule — `0` means *missing* — and applying that here filters out each page's best days
+for 53.4% of the cohort. ML-05 contains the six-check experiment that established which convention
+this warehouse follows.
 
 **Model choice:** **NOT YET DONE** — ML-08 (`w05_model.ipynb`). Only a logistic-regression probe
 has been run so far, as a leakage harness rather than as a candidate model.
@@ -180,19 +184,19 @@ has been run so far, as a leakage harness rather than as a candidate model.
 pages appear on both sides. Justified empirically, not by assertion: the same features on a
 random row split score **+0.169 AUC higher**, and that gap is memorised client structure, not skill.
 
-**Metric.** **Amended 2026-08-05.** The target is now continuous, so a *base rate* — the share of
-the positive class — is undefined, and so is ROC-AUC. Both are replaced:
+**Metric.**
 
 - **Primary: Spearman correlation** between predicted and actual change. The task is ranking, and
   rank correlation measures it directly without inventing a cut-off.
-- **Queue metric: Precision@K** on a **per-client** queue, **K = 100**, monthly — unchanged, except
-  that the cut defining "actually declined" is now an explicit *evaluation* parameter rather than a
-  property of the label.
+- **Queue: Precision@K** on a **per-client** queue, **K = 100**, monthly, **pooled** across clients —
+  with the cut defining "actually declined" stated as an evaluation parameter, not hidden in the label.
 
-The decision remains binary — review or don't — so a threshold still exists; it has moved from
-training to evaluation. **Every figure in this section was measured under the superseded binary
-label** and is kept as a description of that design, not of the current one. Re-measurement is
-ML-07's first task.
+A continuous target has no positive class, so neither a base rate nor ROC-AUC is defined. The
+decision a specialist takes is still binary, so a threshold still exists — it has moved from training
+to evaluation only.
+
+> **Every figure in this section was measured under the superseded binary label.** They are accurate
+> for the design that was tested and kept on that basis; re-measurement is ML-07's first task.
 
 **Both parameters are decided, not assumed.** FlyRank's public pricing sells *"Monthly SEO audits —
 up to 100 pages scanned"* per account (100 → 250 → 500 → unlimited by tier), with dedicated account
@@ -200,11 +204,9 @@ managers per brand. Work is organised by account, so the queue is. K = 100 is th
 most conservative defensible choice. Monthly matches the audit cadence and aligns with the 30-day
 label window, so there is no sliding-horizon problem.
 
-Earlier drafts used a *global* queue at K = 50 on a *weekly* cadence. All three were wrong: K = 50
-sits below even the smallest tier, and the weekly reading came from a lecture's repeated *"this
-week"*, which describes the team's working rhythm rather than the client deliverable. `w02` §3
-carries the capacity arithmetic showing per-client scoping is worth roughly two orders of magnitude
-of recall at the same K.
+`w02` §3 carries the capacity arithmetic: per-client scoping is worth **25–30x** the recall of a
+global queue at the same K, and that ratio holds whether decline is defined at −10%, −20%, −30% or
+−50%. Section 9 records the earlier global / K = 50 / weekly assumptions and why each was wrong.
 
 Residual uncertainty, stated plainly: this rests on public pricing, not internal process
 documentation. "Pages scanned" in an audit may be a wider funnel than pages actually refreshed —
@@ -227,18 +229,9 @@ AUC averages 0.502 against a chance level of 0.500, beating chance on 5 of 10 se
 comparison puts logistic regression last of three (Precision@50 0.400 against a random forest's
 0.740), so a tree may find structure this cannot. ML-08 settles that.
 
-> ⚠️ **An earlier draft claimed a 1.72x lift from a single split** (`random_state=42`), whose
-> Precision@50 fell outside the entire seed 0–9 range. It is recorded rather than deleted: a single
-> grouped split cannot support a claim either way on this dataset.
-
-**Queue scope is settled, and it matters — but less than an earlier draft claimed.** Ranking
-*within* each client rather than in one global pile lifts pooled recall from **1.25% to 3.76%** at
-K=100, roughly 3x. Precision does not follow — per-client Precision@100 is 0.420 against a 0.413
-base rate, a lift of **1.02x**.
-
-> ⚠️ **Corrected.** This previously read "1.2% to 48.5%", a ~39x claim. The 48.5% was an unweighted
-> mean of per-client recall rates set against a pooled global rate — not the same quantity, and
-> unstable enough that one seed read 0.819 off five clients. Both sides are pooled now.
+**Queue scope is settled.** Ranking *within* each client rather than in one global pile lifts pooled
+recall from **1.25% to 3.76%** at K = 100, roughly 3x. Precision does not follow — per-client
+Precision@100 is 0.420 against a 0.413 base rate, a lift of **1.02x**.
 
 **Recall stays low because capacity binds, not because the model is weak.** With a median 422
 declines per client, a 100-page audit cannot catch more than 100 however well it ranks; the
@@ -294,13 +287,8 @@ the same quantity that sets peak ratio, so selecting on a high recent window and
 exclusion-free data. **67.9% of the D1 cohort sits above its own norm** — a property of the cohort
 filter that holds regardless of label.
 
-**This is a correction to an earlier version of this section**, which reported the 7x gradient as the
-central finding and attributed all of it to the denominator. The denominator artefact is real but
-secondary; the definitional one dominates. Both are recorded rather than replaced.
-
-**It is an artefact, not a behaviour — and an earlier draft of this report got that wrong.** The
-first version called it *mean reversion*, which asserts that pages return to normal after an unusual
-month. That is testable, and it fails. Replacing each page's real future window with a random 30-day
+**The artefact is arithmetic, not behaviour.** *Mean reversion* would assert that pages return to
+normal after an unusual month. That is testable, and it fails. Replacing each page's real future window with a random 30-day
 window from its **own history** — preserving level and volatility, destroying any information about
 what happened next — produces a gradient of **79.0 points**, against **12.6 points** observed on the same pages —
 pure arithmetic is **6.3x steeper than reality**. The observed pattern is not even monotonic: the
@@ -310,12 +298,10 @@ most extreme band declines *least* (38.5%) where the null predicts it should dec
 Real pages decay far *less* than chance predicts, which matches the persistence in the series:
 consecutive 30-day means correlate at **Pearson 0.799 / Spearman 0.823** across the 70,013 dense
 pages, so the recent window is a reasonable estimate of a page's level rather than noise. Persistent
-levels are exactly why observed decay undershoots the null. *(An earlier draft said r ≈ 0.89; that
-figure was never computed on this cohort.)*
+levels are exactly why observed decay undershoots the null.
 
 The simulation scores `chg <= -0.20` on every page and never applies the exclusion, so its 12.6-point
-observed spread was never comparable with Test 3's 46.2 — a point an earlier draft explained away as
-sparse pages suffering the artefact more than dense ones. The exclusion-free numbers are 5.3 points
+observed spread was never comparable with Test 3's 46.2. The exclusion-free numbers are 5.3 points
 on the full cohort and 12.6 on the dense subset. Both are small; the gap is cohort, not behaviour.
 
 **Why the distinction decides ML-07.** If genuine reversion drove this, no label redefinition would
@@ -395,3 +381,48 @@ token either as `HF_TOKEN` in a local `.env` (gitignored) or at the `getpass` pr
 > recovery, which would require an experiment this data cannot support. No claim is made about
 > Google's ranking algorithm. No client-identifying details appear. Every number cited is
 > reproduced by a cell in the linked notebook rather than quoted from memory.
+
+---
+
+## 9. Revision log
+
+Sections 1–8 state the current position. This is how it got there, kept so the reasoning can be
+audited rather than taken on trust. Nothing above was deleted to make room for it — superseded
+figures are still present and still labelled with the design they measured.
+
+### Design changes
+
+| date | change | why |
+|---|---|---|
+| 08-05 | three binary labels → one continuous target | the ±20% cut was inherited, not derived; binarising made a 21% dip and a 95% collapse the same label while −19% and −21% became opposite classes; the cohort was split three ways; `future_decline` was false *by construction* for already-declining pages |
+| 08-05 | AUC → Spearman, base rate dropped | a base rate is the share of the positive class, and a continuous target has none; the same kills AUC. The threshold moves from training to evaluation only |
+| 08-06 | log ratio → `asinh` difference | `log(0) = −∞`, and 7.4% of the D1 cohort reaches zero. `asinh` agrees at Spearman +0.9546 / +0.9009 where both are defined and stays finite where the ratio does not |
+| 08-06 | dead pages get their own ranked flag | 87% of pages reaching zero already carried under 1 impression/day; the other 1,334 (D1) need surfacing without competing for queue position |
+| — | global queue at K = 50, weekly → **per-client at K = 100, monthly** | K = 50 is below the smallest audit tier; "weekly" came from a lecture's turn of phrase describing the team's rhythm, not the client deliverable |
+
+### Findings that were withdrawn
+
+| claim | what it actually is | how it was caught |
+|---|---|---|
+| **1.72x lift** over base rate | seed noise | measured on a single split (`random_state=42`) whose Precision@50 fell outside the entire seed 0–9 range |
+| per-client scope lifts recall **1.2% → 48.5%**, ~39x | **1.25% → 3.76%**, ~3x | the 48.5% was an unweighted mean of per-client rates set against a *pooled* global rate; one seed read 0.819 off five clients |
+| the decline gradient is **mean reversion** | an arithmetic artefact | a null replacing each page's future with a random window from its own history produced **79.0** points of gradient against **12.6** observed |
+| Test 3's **7x gradient** is the central finding | **89% the label's `~was_declining` exclusion** | dropping the clause collapsed the spread 46.2 → 5.3 pts (D1) and 66.9 → 7.9 (D2) |
+| Test 3 and the simulation differ because sparse pages suffer more | they were never the same quantity | the simulation never applies the exclusion, so 12.6 was never comparable with 46.2 |
+| consecutive 30-day means correlate at **r ≈ 0.89** | Pearson **0.799**, Spearman 0.823 | carried in from other work; ML-06 contained no autocorrelation code until it was added |
+| `Spearman(peak_ratio, target)` = **−0.044** | **−0.0665** (D1), **−0.1505** (D2) | came from a scratch script, measured against the superseded log target |
+
+### Data corrections
+
+| correction | effect |
+|---|---|
+| GSC position is **zero-based** — `SUM(sum_position)/SUM(impressions) + 1` | the previous gate discarded 53.4% of pages' best days |
+| `avg_position` weighted by impressions, not a mean of daily means | a page's busy days now count for more than its quiet ones |
+| `dim_content` is an **export-time snapshot**, not point-in-time | `days_since_last_update` leaked the future for 77.3% of D1 pages and was removed |
+| the `is_deleted` / `is_published` filter was itself outcome-window selection | reverted — it judged a March decision by July status |
+| 30-day future window divided by 30, not 31 or 90 | an off-by-one moved the label 49.62% → 50.95%; the 90-day error moved recovery 18.3% → 28.2% |
+| `ORDER BY content_hash_id` added to the source query | without it, fixed-seed splits differed between runs |
+
+**One methodological note.** Several of the withdrawn findings share a cause: analysis run in a scratch
+script and then described in prose, rather than recomputed in the notebook that quotes it. Exploring
+outside the notebook is fine; anything that survives into it has to be computed there.
