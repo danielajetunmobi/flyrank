@@ -145,6 +145,8 @@ def explain(token: str, pool: str, values: set[float], docs: str) -> str | None:
     if value in values:
         return "exact value"
 
+    decimals = len(bare.split(".")[1]) if "." in bare else 0
+
     if token.endswith("%"):
         frac = value / 100
         for digits in (3, 4, 5, 6):
@@ -152,8 +154,11 @@ def explain(token: str, pool: str, values: set[float], docs: str) -> str | None:
                 return f"percent of {frac:.{digits}f}"
         if any(abs(v - frac) < 10 ** -6 for v in values):
             return "percent of a printed decimal"
+        # prose rounds: 80.4% is a fair rendering of a printed 0.8037
+        for other in values:
+            if round(other * 100, decimals) == value:
+                return f"percent of {other:g}, rounded"
 
-    decimals = len(bare.split(".")[1]) if "." in bare else 0
     for other in values:
         if round(other, decimals) == value:
             return f"rounded from {other:g}"
