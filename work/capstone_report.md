@@ -362,14 +362,25 @@ Pooled, `Spearman(peak_ratio, target)` is **−0.0665** at D1. The median client
 three and a half times stronger. Clients differ in traffic scale, seasonality and content mix, so a
 relationship holding *inside* each one flattens when they are stacked.
 
-**This changes what "no signal" meant.** Test 1's flat table is real, but the conclusion drawn from
-it — that prior trend carries no information — held only for the pooled view. It also converts the
-per-client queue from a capacity decision into a modelling one: ranking within a client is the level
-at which the relationship exists, not merely what the audit budget allows.
+**Then an adversarial check overturned it.** Both signals contain `trend_recent_impr`, and so does
+the target's baseline — the same shared term that made Test 3's gradient 89% definitional. Replacing
+each page's future with a random window from its own history, on 27,801 dense pages across 8 clients,
+gives a median per-client ρ of **−0.6225** (`prior_trend`) and **−0.6608** (`peak_ratio`), with every
+client above 0.2. Observed is **−0.0306** and **−0.0888**. A null carrying no information about the
+future produces seven to twenty times more correlation than reality.
 
-**For ML-07:** features must be client-relative, or the model must carry client as a grouping. Raw
-cross-client values will keep averaging the signal out. D1 shows 5 sign flips against D2's 1, so
-heterogeneity varies by period and needs rechecking at whatever decision point ML-07 trains on.
+Shuffling the target inside each client collapses ρ to −0.009, so the observed values are not
+sampling noise. They are the arithmetic. Grouping by client does not remove it — the shared term sits
+inside each page.
+
+**What survives:** clients genuinely differ from one another, and per-client correlations are not
+noise. **What does not:** the reading of that as a predictive relationship pooling had hidden.
+
+**For ML-07:** the per-client *queue* stands on capacity grounds, untouched. Per-client *modelling*
+has no evidence behind it. The precondition for asking the question again is the one already on the
+table — give the target a baseline that does not appear in the features. Until `trend_recent_impr` is
+out of the denominator, no correlation between these signals and this target means anything at any
+grouping.
 
 **The cohort filter inflates the decline rate, and `asinh` makes that fixable.** Relaxing
 `trend_recent_impr > 0 AND trend_baseline_impr > 0` and scoring every active page shows the cohort is
