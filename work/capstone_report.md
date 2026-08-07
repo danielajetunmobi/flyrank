@@ -105,11 +105,46 @@ ML-07 either drops those four columns or keeps them unimputed and lets the model
 
 ## 3. Baseline
 
-**NOT YET DONE** — produced by ML-07 (`w04_baseline_score.ipynb`).
+**The rule.** A page is worth reviewing if it is old enough that decay is the likely story, it is
+among the pages that matter for its own client, and it still has something left to lose:
 
-Planned: a transparent rule score in the spirit of the reference pipeline's
-`stale_visible_page` / `declining_with_demand` reason codes, scored on the *same*
-client-grouped split and the *same* metric as any model, so the comparison is fair.
+```
+gate:  content_age_days >= 180
+       impr_90d >= that client's own median
+       slip <= 0.5              (a page that already lost half is not preventable)
+score: content_age_days
+```
+
+Only three fields are permitted. ML-07 measured availability by client and content type and found six
+of 36 clients have **no** GA4 data at all, seven have **no** backlinks data, and one content type has
+none of the keyword enrichment — a rule reading those would rank data availability rather than page
+health. Of the four universally available fields, `content_updated_date` leaks (ML-06 Finding 1),
+leaving `impr_90d`, `avg_position` and `content_created_date`.
+
+**Result: the gate is the baseline; the ranking is not.** Scored on ten `GroupShuffleSplit` seeds at
+`test_size=0.2` — the same protocol any model must use:
+
+| | mean | range |
+|---|---|---|
+| pool base rate | 0.5245 | 0.3180 – 0.7435 |
+| `P@100`, the rule | **0.5041** | 0.3265 – 0.6709 |
+| `P@100`, random order in the gate | **0.5432** | 0.3597 – 0.6690 |
+
+The rule's ordering is **−0.0391 below random** and beats it on only 2 of 10 seeds. The gate is worth
+having — it lifts the decline rate from the cohort's 0.4228 to 0.5245 — but ranking by age inside it
+transfers badly to unseen clients, because the base rate itself swings from 0.318 to 0.744 depending
+which clients are held out.
+
+**The number to beat is 0.5432**, not the rule's 0.5041: shipping a ranking that underperforms
+shuffling would be indefensible, so the honest baseline is the gate with pages in arbitrary order.
+
+**Three earlier versions are kept in the notebook rather than replaced.** v1 (`slip × impr_90d`)
+scored `P@100` 0.9427 and looked far stronger — but its pool was pre-selected to 80.4% decline, its
+persistence null returned **1.0000**, meaning it detected pages that had already fallen rather than
+predicting, and six of its top twenty had already lost 93–96% of their traffic. Had that number
+reached this report unexamined, ML-08 would have been chasing a bar that never existed.
+
+*Source: `work/notebooks/w04_baseline_score.ipynb`.*
 
 ---
 
