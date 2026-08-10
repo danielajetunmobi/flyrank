@@ -61,6 +61,7 @@ ALLOWED = {
     "18.3": "recovery rate before the 30-day baseline fix; same reason",
     "49.62": "label rate before the off-by-one fix; the 31-day window is not rerun",
     "50.95": "label rate after the off-by-one fix, measured under the superseded binary label",
+    "0.5077": "unsigned stagnant test, superseded by the signed version; named in the correction that explains why it proved nothing",
     "0.080": "Pearson position/CTR from notebooks/01_first_look_and_discovery.ipynb, outside work/",
 }
 

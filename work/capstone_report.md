@@ -135,8 +135,11 @@ having — it lifts the decline rate from the cohort's 0.4228 to 0.5245 — but 
 transfers badly to unseen clients, because the base rate itself swings from 0.318 to 0.744 depending
 which clients are held out.
 
-**The number to beat is 0.5432**, not the rule's 0.5041: shipping a ranking that underperforms
-shuffling would be indefensible, so the honest baseline is the gate with pages in arbitrary order.
+**The number to beat is the gate with pages in arbitrary order**, not the rule's 0.5041 — shipping a
+ranking that underperforms shuffling would be indefensible. ML-07 estimated that bar at 0.5432 from a
+single shuffle per seed; **ML-08 re-estimated it at 0.5132** over 20 draws per seed, with a per-seed
+standard deviation of 0.0178. The gate is unchanged; only the estimate of random ordering inside it
+improved.
 
 **Three earlier versions are kept in the notebook rather than replaced.** v1 (`slip × impr_90d`)
 scored `P@100` 0.9427 and looked far stronger — but its pool was pre-selected to 80.4% decline, its
