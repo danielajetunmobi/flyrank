@@ -431,10 +431,37 @@ rather than a ratio of two windows — escapes it cleanly.
 52.88%–55.56% across the entire eligible trend range on D1. A near-coin-flip target is exactly
 what a chance-level probe would produce, with no feature at fault.
 
-**CTR levels are not usable; the CTR–position *ordering* partly is.** Weighted CTR for positions
-1–3 measures 0.30% (D1) and 0.39% (D2) against the ≈2.78% documented in `docs/data-dictionary.md` —
-7–9x below FlyRank's own figure, flat across rank bands, and reproduced in the starter CSV, so not a
-warehouse artefact. Absolute CTR and any threshold built on it are therefore unreliable. **It is not a broken denominator:** no page on either date has more clicks than impressions, and the pooled rate (0.305%) sits below even the mean of per-page rates (0.421%), so neither a mismatched window nor an averaging mistake explains the gap. It survives inside rank 1–3, where composition cannot account for it. This is a question for FlyRank about how 2.78% was computed.
+**CTR is correctly measured and simply compressed** — corrected against FlyRank's own research.
+Weighted CTR for positions 1–3 measures 0.30% (D1) and 0.39% (D2). An earlier version of this report
+read that as **7–9x below FlyRank's own figure**, comparing against the ≈2.78% in
+`docs/data-dictionary.md`.
+
+FlyRank's March 2026 paper (`docs/flyrank-seo-research-march-2026.pdf`, Finding #3) publishes weighted
+CTR by position tier and says these figures *"replace the older per-row average that produced
+impossible values above 100%"*:
+
+| tier | ours (D1 / D2) | FlyRank research |
+|---|---|---|
+| top 3 | 0.30% / 0.39% | 0.423% |
+| page 1 (4–10) | 0.33% / 0.34% | **0.339%** |
+| striking (11–20) | 0.32% / 0.32% | **0.325%** |
+| page 3–5 (21–50) | 0.16% / 0.15% | **0.163%** |
+
+Three of four bands agree to two decimal places, and the top-3 band is the thinnest stratum on both
+sides. **The measurement was right; the reference was wrong**, and the dictionary concedes as much in
+its own note — its 2.78% comes from a slice with median volume ~53 impressions/90d, "where one click
+moves CTR by ~1.9pp", which is precisely the thin per-row average the research paper replaced.
+
+ML-06 Test 7 had already ruled out a broken denominator: no page on either date has more clicks than
+impressions, and the pooled rate (0.305%) sits below the mean of per-page rates (0.421%). That test
+was right that the data was sound; it could not tell that the *benchmark* was the problem, because
+the benchmark was not in the warehouse.
+
+**The finding that survives is compression.** The first twenty positions span **0.10 percentage
+points**, in our data and in FlyRank's. A rule keyed to CTR level cannot separate pages that a
+0.10-point spread cannot separate — which is why `low_ctr_visible_page` has little to work with here.
+CTR stays out of the model on measured redundancy rather than on doubt: `Spearman(ctr, target)` is
+**−0.0189**, and adding it costs **−0.0136** AUC because `avg_position` already carries the ordering.
 
 But rank-based correlation between position and CTR is **−0.288** across the cohort and **−0.231**
 above 1,000 impressions — correctly signed, stable across that filter, and about **3.6x stronger

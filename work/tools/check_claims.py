@@ -123,6 +123,14 @@ def load_docs() -> str:
         for path in ROOT.glob(pattern):
             if path.is_file():
                 parts.append(path.read_text(encoding="utf-8", errors="ignore"))
+    # FlyRank's own published research is a citable external source, same as the
+    # markdown docs. Without this, quoting it looks identical to inventing it.
+    for pdf in ROOT.glob("docs/**/*.pdf"):
+        try:
+            from pypdf import PdfReader
+            parts.append("\n".join((p.extract_text() or "") for p in PdfReader(pdf).pages))
+        except Exception:
+            pass
     return "\n".join(parts)
 
 
