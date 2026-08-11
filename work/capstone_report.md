@@ -220,8 +220,44 @@ the opposite rule — `0` means *missing* — and applying that here filters out
 for 53.4% of the cohort. ML-05 contains the six-check experiment that established which convention
 this warehouse follows.
 
-**Model choice:** **NOT YET DONE** — ML-08 (`w05_model.ipynb`). Only a logistic-regression probe
-has been run so far, as a leakage harness rather than as a candidate model.
+**Model choice: ridge regression on five features.** Four algorithms — ridge, logistic, gradient
+boosting as regressor and as classifier — each on two feature sets, scored on the same ten
+`GroupShuffleSplit` seeds the baseline uses.
+
+| model | spearman | P@20 | P@100 | recall@100 | AUC | R² |
+|---|---|---|---|---|---|---|
+| **ridge FULL** | **0.5302** | **0.7828** | **0.7563** | 0.1293 | 0.7584 | 0.0026 |
+| logistic FULL | 0.5152 | 0.7814 | 0.7500 | 0.1293 | 0.7519 | — |
+| gbm_reg FULL | 0.4945 | 0.7477 | 0.7216 | 0.1182 | 0.7380 | −0.0020 |
+| gbm_clf FULL | 0.4843 | 0.7769 | 0.7298 | 0.1266 | 0.7487 | — |
+| logistic SAFE | 0.0553 | 0.5442 | 0.5466 | 0.0930 | 0.5436 | — |
+| **baseline, gate + random order** | **−0.0014** | 0.5094 | **0.5129** | 0.0839 | 0.5000 | — |
+
+**The five features are `peak_ratio`, `prior_trend`, `content_age_days`, `impr_90d`, `avg_position`,
+and effectively it is one.** `peak_ratio` holds **0.6034** permutation importance against ≤0.0073 for
+every other feature; `content_age_days` is **−0.0645**, meaning shuffling it *improves* held-out fit.
+
+**Twenty candidate features were examined, not five.** Every column in `dim_content` is accounted for:
+four identifiers, two pipeline-metadata fields, and twenty candidates each either in the model or
+excluded with a measured reason — availability (six clients have no GA4 at all), timing (both
+optimisation dates sit after the decision point for **100.0%** of populated rows), or no measured gain.
+
+**Correlation with the target barely predicts whether a feature helps.** `prior_trend` correlates
+**+0.5438** and contributes 0.0038. `url_char_count` correlates **−0.2225** and costs **−0.0185**.
+`peak_ratio` absorbs what the others carry.
+
+**Ridge over logistic on the primary metric.** The gap is +0.0063 on `P@100` — inside seed noise — but
+**+0.0150** on rank agreement, which is the metric this project declared primary. Logistic trains on a
+binarised label and discards magnitude by construction. Ridge's R² of 0.0026 makes its predicted
+*value* unfit to display: **ship the rank, never the number**.
+
+**Boosting placed third, and the notebook records why rather than leaving it implicit** — R² is ~0 for
+every model, so a squared-error objective spends its capacity on the unpredictable part. A ranking
+objective is the principled follow-up, not a hyperparameter sweep.
+
+**One model serves the whole lane.** Sorting the same predictions two ways and splitting on prior
+state gives three queues: decline **+0.2111** over random, momentum **+0.1734**, recovery **+0.0962**.
+The three-label design would have needed three models.
 
 *Source: `work/notebooks/w02_ml_task_framing.ipynb`, `w03_feature_leakage_check.ipynb`.*
 
@@ -298,7 +334,41 @@ carries `ORDER BY content_hash_id`.
 July 2026 state moves AUC by +0.002; adding a point-in-time reconstruction of freshness moves it
 -0.002.
 
-**Error analysis:** **NOT YET DONE** — ML-09 (`w06_validation_audit.ipynb`).
+### Where the model is wrong (ML-08 §4; extended in ML-09)
+
+**It leans on one feature, and one of the five actively hurts.** `peak_ratio` **0.6034** permutation
+importance, `avg_position` 0.0073, `impr_90d` 0.0061, `prior_trend` 0.0038, `content_age_days`
+**−0.0645**. A feature correlating −0.1981 with the target degrades held-out fit — collinear with
+`peak_ratio` and splitting its coefficient.
+
+**Performance varies more across clients than across anything else.** Per-client `P@100` on one
+held-out split spans **0.458 to 0.970**. The worst client took **72** picks, so it is not a
+sample-size artefact — the two clients scoring 0.500 and 0.600 took 6 and 5 picks and are.
+
+**Precision is flat across the confident picks and collapses on the marginal ones.** By decile of
+predicted target: **0.896, 0.908, 0.922, 0.961** — then **0.442** in the last band. The model is
+reliable exactly where it is confident, and near-random at the edge of what it will pick. For a queue
+truncated at K that is the right shape of failure, and it argues for surfacing the score's confidence
+rather than presenting all 100 picks as equivalent.
+
+**The ordering is monotonic across the signed outcome**, which no threshold metric could show. Mean
+predicted percentile by what actually happened: large fall **0.3330**, small fall 0.4221, stagnant
+**0.5012**, small rise 0.5153, large rise **0.6648**. Pages that fell hard are **9x** likelier to sit
+in the predicted-worst decile than the best; pages that rose hard, **12x** the reverse.
+
+**Stagnant pages need no special handling** — they sit at 0.5012 and reach an extreme **16.97%** of the
+time against 25.42% for large fallers. The `w01` "negative class" was unnecessary.
+
+**About a fifth of the gain is arithmetic.** A null replacing each page's future with a random window
+from its own history leaves the FULL models only **+0.04** above the null's own base rate, against
+**+0.21** on the real future. The rest is genuine prediction — the first result in this project to
+survive that test.
+
+**Roughly half the advantage transfers to an unseen month.** Trained at D1, scored once at D2:
+**+0.1291** over random, against **+0.2436** at D1 — **53%** retained.
+
+**What ML-09 still owes:** three concrete failure cases read individually, whether the 0.458 client is
+data-poor or structurally different, and whether a ranking objective closes boosting's gap.
 
 *Source: `work/notebooks/w03_feature_leakage_check.ipynb`.*
 
