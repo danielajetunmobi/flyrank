@@ -534,6 +534,64 @@ decision points. Unlike prior trend, a per-client rerun does not rescue it: medi
 removes 13.9% missingness plus a category leak. `search_volume`, `cpc` and `competition` are left
 untested on purpose — absent for an entire content type, any correlation would measure the type.
 
+### What FlyRank's own research says about this work
+
+`docs/flyrank-seo-research-march-2026.pdf` analyses 341,701 content pieces across 57 brands — roughly
+1.7x this warehouse. It was in the repository throughout and was not read until ML-08 was finished.
+Reading it corrected one finding, confirmed four, and exposed a contradiction between FlyRank's own
+two documents.
+
+**A contradiction we could not have resolved from inside the data.** The research paper defines
+`trend_direction` as *"Up: >10% growth. Down: >10% decline. Stable: within +/-10%"*. The data
+dictionary defines the same field as `up > +20%; down < −20%`. **The two documents disagree by a
+factor of two**, and this project followed the dictionary throughout ML-03 to ML-06, describing ±20%
+as "FlyRank's own convention".
+
+Neither choice was verifiable against the warehouse, because a threshold is a definition rather than a
+measurement. What resolved it was abandoning thresholds: the continuous target has no cut to get
+wrong. That was adopted for other reasons entirely — and this is the clearest evidence that the
+redesign was worth its cost.
+
+**Their ML appendix contains the same error this project spent five weeks on.** A random forest
+predicts `health_score`, and `Average Position` scores **43** on feature importance with `Impressions`
+at **32**. But `health_score` is *defined* as impressions (30 pts) + position (30 pts) + CTR (20 pts)
++ scroll depth (20 pts). **Sixty percent of the target is built from the two features that top its own
+importance ranking.**
+
+To their credit the paper says so plainly — *"the target itself is partly constructed from some of
+these inputs, so importance is descriptive rather than causal"* — and confines the ML work to a
+labelled appendix. This project made the same class of mistake three times (Test 3, the simulation,
+Test 5) and needed a null simulation to see it. That two independent efforts on the same data hit the
+identical trap is the strongest argument for making the null a standing check rather than an
+occasional one.
+
+**Four findings confirmed independently.**
+
+| our finding | their finding |
+|---|---|
+| `search_volume` carries no signal — Spearman **+0.0124** | raw SV→impressions **0.0083**, log-scaled **−0.0419**, "both are weak" |
+| `page_one_decay_risk` does not select at-risk pages (lift 1.01 / 0.91) | Myth #3 **REVERSED** — "flags mark leverage, not failure"; flagged pages score *higher* because flags need visibility to trigger |
+| `content_age_days` negatively related to future traffic — Spearman **−0.1981** | "Content age is the strongest negative signal in this model" |
+| CTR compressed across the first twenty positions | 0.423% → 0.325%, a 0.10-point span |
+
+The `page_one_decay_risk` result is the most useful. ML-06 marked it FALSE and treated that as a
+finding about the rule. Their Myth #3 explains *why*: optimisation flags can only fire on pages with
+enough traffic to diagnose, so flagged pages are systematically more visible than unflagged ones.
+**The flag was never a decline predictor and was not built to be one.** Our verdict stands; the
+interpretation improves.
+
+**Where this project's evidence standard goes further.** Their growth model reports **71%** holdout
+accuracy without the base rate beside it — and their own split is 74.8K growing against 45.6K
+declining, so predicting "growing" every time scores about 62%. The building-baselines skill in this
+repository is explicit that precision must be reported next to the base rate, and that is exactly the
+gap. They use one holdout; this project uses ten client-grouped splits, reports the random-order bar
+next to every model, and runs a null on the headline result.
+
+None of that makes their paper wrong — it is a public portfolio study, not a model evaluation, and it
+says so. But it does mean the reference pipeline's numbers should not be used as a target to beat.
+
+---
+
 ## 7. Recommendation
 
 **NOT YET DONE** — ML-10 (`w07_action_playbook.ipynb`).

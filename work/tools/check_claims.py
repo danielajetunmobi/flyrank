@@ -20,6 +20,15 @@ Matching is deliberately generous, because prose legitimately reformats numbers:
 
 Anything still unmatched is either a real defect or belongs in ALLOWED below,
 with a reason. Silence is not an option -- an exception has to be written down.
+
+WHAT THIS DOES NOT PROVE. A pass means every number exists somewhere, not that
+it is the right number in the right place. With ~1,300 tokens and a generous
+matcher, coincidences happen: a citation of FlyRank's published 0.423% CTR
+matched this project's own 0.4228 cohort decline rate and passed as "rounded
+from". Use --list to see WHICH source matched a figure you care about, and
+verify externally-sourced numbers against the source directly. This tool
+catches invention and staleness; it cannot catch a number that is real but
+wrong for the sentence it sits in.
 """
 
 from __future__ import annotations
