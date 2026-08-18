@@ -265,4 +265,12 @@ EXPLAIN = {
  ("w06_validation_audit", 21):
    "Reads the three failure cases individually and tests whether a rank-transformed target closes "
    "boosting's gap. It does not.",
+ ("w06_validation_audit", 24):
+   "The hyperparameter check the project never ran. Ridge gets its alpha chosen by leave-one-out "
+   "inside the training fold; boosting gets a small grid scored on an inner grouped split carved "
+   "out of the training clients. Tuning inside the fold is what stops the held-out clients from "
+   "influencing the choice. Ridge is unmoved -- +0.0000 on every metric, across alphas spanning "
+   "five orders of magnitude -- while boosting gains +0.0120 and still trails. What the tuner asks "
+   "for matters more than the gain: every seed picked the lower learning rate and most picked "
+   "shallower trees, so the search is trying to make the ensemble more linear.",
 }
