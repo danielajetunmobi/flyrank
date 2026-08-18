@@ -265,6 +265,16 @@ EXPLAIN = {
  ("w06_validation_audit", 21):
    "Reads the three failure cases individually and tests whether a rank-transformed target closes "
    "boosting's gap. It does not.",
+ ("w06_validation_audit", 28):
+   "Two late corrections, both to work already committed. It shows that ga4_data_available has three "
+   "states rather than two -- 58.30% FALSE, 37.65% NULL, 4.04% TRUE -- so only about one page-day in "
+   "twenty-five has tracking on, and the flag separates 'tracked but idle' from 'not tracked' for "
+   "just 1.40% of flag-true rows. Then it sweeps the raw fact table for extremes, which nothing in "
+   "this project had done: every distribution was computed on the cohort, which is already 90-day "
+   "sums, so a single impossible day disappears once summed. Four GA4 columns exceed 10,000x their "
+   "own 99th percentile. The cell also carries two of its own bugs in the record -- a 'tracked but "
+   "idle' figure computed for flag states where it means nothing, and a seconds-to-hours conversion "
+   "that followed whichever column topped the ranking and so labelled a session count as hours.",
  ("w06_validation_audit", 25):
    "The hyperparameter check the project never ran. Ridge gets its alpha chosen by leave-one-out "
    "inside the training fold; boosting gets a small grid scored on an inner grouped split carved "
