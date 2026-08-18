@@ -265,7 +265,7 @@ EXPLAIN = {
  ("w06_validation_audit", 21):
    "Reads the three failure cases individually and tests whether a rank-transformed target closes "
    "boosting's gap. It does not.",
- ("w06_validation_audit", 24):
+ ("w06_validation_audit", 25):
    "The hyperparameter check the project never ran. Ridge gets its alpha chosen by leave-one-out "
    "inside the training fold; boosting gets a small grid scored on an inner grouped split carved "
    "out of the training clients. Tuning inside the fold is what stops the held-out clients from "
