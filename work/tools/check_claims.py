@@ -72,6 +72,8 @@ ALLOWED = {
     "50.95": "label rate after the off-by-one fix, measured under the superseded binary label",
     "0.5077": "unsigned stagnant test, superseded by the signed version; named in the correction that explains why it proved nothing",
     "0.080": "Pearson position/CTR from notebooks/01_first_look_and_discovery.ipynb, outside work/",
+    "4,964": "ga4_pageviews max on ML-04's five-month window, superseded when the sweep was widened "
+             "to the whole warehouse; named in the note explaining why the window mattered",
 }
 
 TOKEN_RE = re.compile(

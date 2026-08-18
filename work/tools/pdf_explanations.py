@@ -49,13 +49,22 @@ EXPLAIN = {
    "Sweeps the remaining fact-table columns for missingness and zero-inflation, so ML-05's feature "
    "vector starts from measured availability rather than assumption.",
  ("w03_data_contract", 14):
+   "The page-day sweep, added after ML-09 found it missing. Every other check in this notebook -- "
+   "including the one directly above -- groups by content and sums over 90 days, which is the right "
+   "grain for a feature and the wrong grain for finding a broken row: one impossible day disappears "
+   "the moment it is summed. This queries the fact table without aggregating, reports each numeric "
+   "column's maximum against its own 99th percentile, and separately tests bounds that real data "
+   "cannot violate. It runs on all seven months rather than the five this notebook's cohort needs, "
+   "because a data contract describes the table rather than one cohort's view of it -- on five "
+   "months it reported ga4_pageviews at 4,964 against 64,750 across the warehouse.",
+ ("w03_data_contract", 17):
    "Profiles dim_content: what each column means, how often it is populated, and which fields are "
    "export-time snapshots rather than point-in-time records. The snapshot property found here is "
    "what later makes content_updated_date unusable.",
- ("w03_data_contract", 16):
+ ("w03_data_contract", 19):
    "Profiles dim_clients, including gsc_data_start, which determines whether a client's history "
    "actually covers the prior window a decision point requires.",
- ("w03_data_contract", 18):
+ ("w03_data_contract", 21):
    "Examines FlyRank's own optimisation flags to decide whether they can be features. They cannot: "
    "a flag encodes a decision someone already made, so they are recorded as baselines to beat.",
 

@@ -125,6 +125,7 @@ def build_code():
         "hold the skeleton's placeholder comment are listed and skipped.")
 
     total = 0
+    missing = []
     for stem in ORDER:
         if stem not in NB:
             continue
@@ -143,7 +144,10 @@ def build_code():
         for idx, c in real:
             total += 1
             src = cell_src(c).rstrip()
-            note = EXPLAIN.get((stem, idx)) or summarise(src)
+            note = EXPLAIN.get((stem, idx))
+            if note is None:
+                missing.append((stem, idx, src.splitlines()[0][:55]))
+                note = summarise(src)
             flow.append(para(f"cell {idx}", H3))
             flow.append(para(esc(note).replace("&lt;font face=&#39;Courier&#39;&gt;", "")
                                   if "NO AUTHORED" not in note else
@@ -157,6 +161,11 @@ def build_code():
             flow.append(Spacer(1, 5 * mm))
         flow.append(PageBreak())
 
+    if missing:
+        print(f"WARNING: {len(missing)} cells have no authored explanation. Inserting a cell "
+              f"shifts every index after it, so this is usually key drift rather than a new cell:")
+        for stem, idx, head in missing:
+            print(f"    ({stem!r}, {idx}) -> {head}")
     print(f"code document covers {total} cells")
     build(OUT / "flyrank_the_code.pdf", "FlyRank ML internship - The Code", flow)
 
