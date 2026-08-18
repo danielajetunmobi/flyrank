@@ -1,0 +1,15 @@
+# Binary artefacts must never get line-ending conversion. Without this, git on
+# Windows rewrites LF to CRLF inside the PDFs on checkout and the files stop
+# opening. The commit that added work/outputs/*.pdf raised exactly that warning.
+*.pdf binary
+*.parquet binary
+*.png binary
+*.jpg binary
+*.zip binary
+
+# Notebooks are JSON: keep them LF so a checkout on another platform does not
+# rewrite every line and produce a whole-file diff.
+*.ipynb text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.csv text eol=lf
