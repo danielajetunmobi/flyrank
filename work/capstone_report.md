@@ -220,7 +220,7 @@ the opposite rule — `0` means *missing* — and applying that here filters out
 for 53.4% of the cohort. ML-05 contains the six-check experiment that established which convention
 this warehouse follows.
 
-**Model choice: ridge regression on five features.** Four algorithms — ridge, logistic, gradient
+**Model choice: ridge regression on four features.** Four algorithms — ridge, logistic, gradient
 boosting as regressor and as classifier — each on two feature sets, scored on the same ten
 `GroupShuffleSplit` seeds the baseline uses.
 
@@ -233,9 +233,23 @@ boosting as regressor and as classifier — each on two feature sets, scored on 
 | logistic SAFE | 0.0553 | 0.5442 | 0.5466 | 0.0930 | 0.5436 | — |
 | **baseline, gate + random order** | **−0.0014** | 0.5094 | **0.5129** | 0.0839 | 0.5000 | — |
 
-**The five features are `peak_ratio`, `prior_trend`, `content_age_days`, `impr_90d`, `avg_position`,
-and effectively it is one.** `peak_ratio` holds **0.6034** permutation importance against ≤0.0073 for
-every other feature; `content_age_days` is **−0.0645**, meaning shuffling it *improves* held-out fit.
+**The four features are `peak_ratio`, `prior_trend`, `impr_90d` and `avg_position`, and effectively
+it is one.** `peak_ratio` holds **0.6034** permutation importance against ≤0.0073 for every other
+feature.
+
+**ML-08 shipped five; ML-09's ablation removed one.** `content_age_days` scored **−0.0645** on
+permutation importance — shuffling it *improved* held-out fit — and dropping it outright gains on
+every metric: spearman **0.5302 → 0.5546**, `P@100` 0.7563 → **0.7612**, AUC 0.7584 → **0.7693**. It
+correlates −0.1981 with the target and is collinear enough with `peak_ratio` to split its
+coefficient. The table above reports the five-feature model as ML-08 measured it; the shipped model
+is the four-feature one.
+
+**All four survivors are window aggregates.** `impr_90d` sums impressions over 90 days;
+`avg_position` is impression-weighted, `SUM(sum_position)/SUM(impressions) + 1`; `peak_ratio` and
+`prior_trend` are each ratios of two such sums. `content_age_days` was the only point-in-time value
+in the set — a date difference, nothing aggregated — and it is the one validation removed. Every
+aggregate is computed by summing then dividing, never by averaging per-day rates, which is the
+correction that fixed `avg_position` in ML-04.
 
 **Twenty candidate features were examined, not five.** Every column in `dim_content` is accounted for:
 four identifiers, two pipeline-metadata fields, and twenty candidates each either in the model or
