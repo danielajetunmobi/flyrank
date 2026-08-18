@@ -367,8 +367,12 @@ survive that test.
 **Roughly half the advantage transfers to an unseen month.** Trained at D1, scored once at D2:
 **+0.1291** over random, against **+0.2436** at D1 — **53%** retained.
 
-**What ML-09 still owes:** three concrete failure cases read individually, whether the 0.458 client is
-data-poor or structurally different, and whether a ranking objective closes boosting's gap.
+**All three items ML-09 owed are now closed** (`w06_validation_audit.ipynb`). The 0.458 client is a
+capacity artefact — 72 pages against 100 slots, so the queue took every page and precision equalled
+its base rate of 0.4583. The three failure cases are all **recoveries**: pages that fell to roughly
+half their baseline and then rose above it, which the model extrapolated downward. And the ranking
+objective does **not** close boosting's gap — a rank-transformed target buys **+0.0004** spearman,
+leaving boosting **0.0168** behind ridge, so ML-06's objective-mismatch hypothesis is withdrawn.
 
 *Source: `work/notebooks/w03_feature_leakage_check.ipynb`.*
 
