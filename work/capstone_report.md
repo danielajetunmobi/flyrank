@@ -723,7 +723,7 @@ figures are still present and still labelled with the design they measured.
 | date | change | why |
 |---|---|---|
 | 08-05 | three binary labels → one continuous target | the ±20% cut was inherited, not derived; binarising made a 21% dip and a 95% collapse the same label while −19% and −21% became opposite classes; the cohort was split three ways; `future_decline` was false *by construction* for already-declining pages |
-| 08-05 | AUC → Spearman, base rate dropped | a base rate is the share of the positive class, and a continuous target has none; the same kills AUC. The threshold moves from training to evaluation only |
+| 08-05 | AUC → **Spearman as the primary metric**; the *label* stops carrying a base rate | a base rate is the share of a positive class and a continuous target has none, so neither a base rate nor AUC is a property of the label any more. **Both return at evaluation**, where the `target < 0` cut is applied: AUC is reported beside spearman in ML-05, ML-08 and ML-09, and the scored pool's base rate is mandatory beside every score. ML-09 §8 makes it central — the pool moves from 0.3169 to 0.7869 across four months |
 | 08-06 | log ratio → `asinh` difference | `log(0) = −∞`, and 7.4% of the D1 cohort reaches zero. `asinh` agrees at Spearman +0.9546 / +0.9009 where both are defined and stays finite where the ratio does not |
 | 08-06 | dead pages get their own ranked flag | 87% of pages reaching zero already carried under 1 impression/day; the other 1,334 (D1) need surfacing without competing for queue position |
 | — | global queue at K = 50, weekly → **per-client at K = 100, monthly** | K = 50 is below the smallest audit tier; "weekly" came from a lecture's turn of phrase describing the team's rhythm, not the client deliverable |
@@ -796,6 +796,7 @@ demanded, and ML-09 closed all three items the capstone said it owed. These did 
 | gap 1: "`work/outputs/` is empty" | it holds `baseline_action_score.csv`. The *substance* stands — no feature cache — but the reason given for deferring it expired when ML-06 Test 8 closed hypothesis 3 |
 | section 2: categorical encoding "deferred to the modelling stage" | ML-08 settled it; two of the three are unusable and the third moves `P@100` by −0.0001 |
 | ML-06 carried an unfilled template line duplicated below its own heading | removed |
+| revision log, 08-05: "AUC → Spearman, **base rate dropped** … the same kills AUC" | neither was dropped, and the row contradicted its own last clause. Moving the threshold "from training to evaluation" is precisely what *keeps* both: AUC is reported beside spearman in ML-05, ML-08 and ML-09, and the base rate is mandatory beside every score. The row had been copied verbatim into three notebooks as well as here |
 
 **Two methodological notes.** Several withdrawn findings share a cause: analysis run in a scratch
 script and then described in prose, rather than recomputed in the notebook that quotes it. Exploring
