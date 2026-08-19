@@ -86,6 +86,14 @@ def md_to_flowables(src: str, max_chars: int = 100_000) -> list:
             if buf:
                 out.append(para(_inline(" ".join(buf)), BODY)); buf = []
             continue
+        # A horizontal rule. Without this it is not a heading, a table or blank,
+        # so it lands in buf and prints as a literal "---" paragraph. The
+        # notebooks rarely use one; the capstone report uses ten.
+        if re.fullmatch(r"[-*_]{3,}", line.strip()):
+            if buf:
+                out.append(para(_inline(" ".join(buf)), BODY)); buf = []
+            out.append(Spacer(1, 3 * mm))
+            continue
         if line.startswith("#"):
             if buf:
                 out.append(para(_inline(" ".join(buf)), BODY)); buf = []

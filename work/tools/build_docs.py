@@ -26,6 +26,11 @@ from pdf_explanations import EXPLAIN
 NB = {Path(p).stem: p for p in __import__("glob").glob(
     str(Path(__file__).resolve().parents[2] / "work" / "notebooks" / "w0*.ipynb"))}
 
+# The capstone is the one written artefact that is not a notebook, so the glob
+# above never saw it and neither PDF carried it. It goes in "the work" only --
+# "the code" explains code cells and the report has none.
+CAPSTONE = Path(__file__).resolve().parents[2] / "work" / "capstone_report.md"
+
 
 def cover(title: str, subtitle: str, blurb: str) -> list:
     return [Spacer(1, 40 * mm),
@@ -55,7 +60,9 @@ def build_work():
         "A walkthrough of every assignment: what it set out to do, what it found, and what it "
         "withdrew. The written sections of each notebook are reproduced in order, so the reasoning "
         "path is visible rather than only its conclusions. Where a finding was later corrected, "
-        "the correction appears in place rather than replacing the original.")
+        "the correction appears in place rather than replacing the original. "
+        "<b>The capstone report is reproduced in full at the end</b>, after the assignments it "
+        "draws on.")
 
     flow.append(para("How to read this", H2))
     flow += md_to_flowables(
@@ -96,7 +103,40 @@ def build_work():
             flow += md_to_flowables(src)
         flow.append(PageBreak())
 
+    flow += capstone_flow()
     build(OUT / "flyrank_the_work.pdf", "FlyRank ML internship - The Work", flow)
+
+
+def capstone_flow() -> list:
+    """The capstone report, split at its own section headings.
+
+    Rendered a section at a time for two reasons: md_to_flowables truncates at
+    100k characters by default and this file is half that and growing, and a
+    single call would run nine sections together with no page breaks.
+    """
+    import re
+
+    if not CAPSTONE.exists():
+        print(f"WARNING: {CAPSTONE.name} not found; the work PDF will omit it")
+        return []
+
+    text = CAPSTONE.read_text(encoding="utf-8")
+    flow = [para("Capstone Report", H1),
+            para(f"Source: <font face='Courier'>{CAPSTONE.name}</font> "
+                 f"&nbsp;&middot;&nbsp; maintained alongside the notebooks rather than "
+                 f"generated from them, so unlike everything above it is hand-written. "
+                 f"Its figures are held to the notebooks by "
+                 f"<font face='Courier'>check_claims.py</font>.", SMALL),
+            Spacer(1, 4 * mm)]
+
+    body = re.sub(r"\A#[^\n]*\n", "", text, count=1)   # drop its H1; replaced above
+    parts = [p for p in re.split(r"^(?=## )", body, flags=re.M) if p.strip()]
+    for j, part in enumerate(parts):
+        flow += md_to_flowables(part, max_chars=len(part) + 1)
+        if j != len(parts) - 1:
+            flow.append(PageBreak())
+    print(f"work document includes the capstone ({len(parts)} sections, {len(text):,} chars)")
+    return flow
 
 
 # --------------------------------------------------------------------- the code
