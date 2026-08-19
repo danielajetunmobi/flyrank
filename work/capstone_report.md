@@ -309,6 +309,27 @@ label window, so there is no sliding-horizon problem.
 global queue at the same K, and that ratio holds whether decline is defined at −10%, −20%, −30% or
 −50%. Section 9 records the earlier global / K = 50 / weekly assumptions and why each was wrong.
 
+> ⚠️ **Corrected by FlyRank's answer (2026-08-19).** Both paragraphs above are withdrawn in part.
+> FlyRank confirms the queue is generated **separately per client** and is **customized rather than a
+> global top 50** — so Decision 1 stands, now on the client's word rather than on inference from
+> pricing copy. The rest does not:
+>
+> - **Cadence is weekly**, not monthly. Section 9's revision-log row recording "weekly → monthly" as
+>   a correction was itself the error; the earlier draft had it right.
+> - **K is a configurable per-client budget.** The automated workflow can process **thousands of
+>   pages per day**, so the audit tier bounds neither the queue nor the review, and K = 100 has no
+>   special status.
+> - **The 30-day label must not be tied to the queue cadence.** FlyRank asks for several K values and
+>   several outcome windows tested independently. The "no sliding-horizon problem" convenience above
+>   is exactly what they rejected.
+> - **Report macro client metrics** — the mean of per-client rates — as the headline, with pooled
+>   alongside. This reverses the emphasis this report uses throughout. It does **not** reinstate the
+>   withdrawn 48.5%, which compared a macro numerator against a pooled baseline and is wrong under
+>   either convention.
+>
+> The **25–30x** figure is a like-for-like pooled comparison at one K and survives as stated. What
+> does not survive is reading it as a capacity argument.
+
 Residual uncertainty, stated plainly: this rests on public pricing, not internal process
 documentation. "Pages scanned" in an audit may be a wider funnel than pages actually refreshed —
 content credits bound the latter. Our output is a review queue, so the audit figure is the right
@@ -339,6 +360,13 @@ declines per client, a 100-page audit cannot catch more than 100 however well it
 perfect-model pooled ceiling is 4.2% at K=100. A better model in ML-08 buys precision, not coverage.
 This strengthens the `w01` asymmetry: most declines are missed regardless, so the reviewed pages
 must be the right ones.
+
+> ⚠️ **Withdrawn by FlyRank's answer (2026-08-19).** Capacity does not bind. The workflow processes
+> thousands of pages per day and K is a per-client budget, so the 4.2% ceiling describes a K chosen
+> from public pricing copy rather than a limit of the design. The measured **3.76%** stands as what
+> this probe reached *at K = 100*; it is not a ceiling. What survives untouched is the `w01`
+> asymmetry's other half — a missed decline costs more than a false flag — which argued for ranking
+> quality independently of coverage. The replacement ceiling is a K sweep, owed in ML-10.
 
 **Variance, and why single splits are worthless here.** `GroupShuffleSplit` holds out 20% of
 *clients*, not pages, and client sizes span 711 to 24,418. Realised test sets range from 815 to
@@ -699,6 +727,9 @@ figures are still present and still labelled with the design they measured.
 | 08-06 | log ratio → `asinh` difference | `log(0) = −∞`, and 7.4% of the D1 cohort reaches zero. `asinh` agrees at Spearman +0.9546 / +0.9009 where both are defined and stays finite where the ratio does not |
 | 08-06 | dead pages get their own ranked flag | 87% of pages reaching zero already carried under 1 impression/day; the other 1,334 (D1) need surfacing without competing for queue position |
 | — | global queue at K = 50, weekly → **per-client at K = 100, monthly** | K = 50 is below the smallest audit tier; "weekly" came from a lecture's turn of phrase describing the team's rhythm, not the client deliverable |
+| 08-19 | per-client at K = 100, monthly → **per-client at configurable K, weekly** | FlyRank answered directly. The row above got the scope right and the cadence wrong: "weekly" was the client deliverable after all. K = 100 came from an audit tier that bounds nothing — the workflow processes thousands of pages per day |
+| 08-19 | pooled metrics → **macro client metrics as the headline**, pooled retained | FlyRank asks for macro. The 48.5% withdrawal below stands on its own terms — macro numerator against pooled baseline — but the inference that pooling was therefore the right convention does not |
+| 08-19 | 30-day outcome window tied to the queue cadence → **swept independently** | tying the label to the rebuild interval was a convenience ("no sliding-horizon problem"), and FlyRank rejected it: several K values and several outcome windows, tested separately |
 
 ### Findings that were withdrawn
 
@@ -724,6 +755,32 @@ figures are still present and still labelled with the design they measured.
 | the `is_deleted` / `is_published` filter was itself outcome-window selection | reverted — it judged a March decision by July status |
 | 30-day future window divided by 30, not 31 or 90 | an off-by-one moved the label 49.62% → 50.95%; the 90-day error moved recovery 18.3% → 28.2% |
 | `ORDER BY content_hash_id` added to the source query | without it, fixed-seed splits differed between runs |
+
+### What FlyRank confirmed, and what it overturned (2026-08-19)
+
+Most of this project's operating parameters were inferred from public pricing copy because no
+authoritative answer was available. One arrived. It is recorded here in full because several sections
+above were written against the guesses, and because two of the guesses were right for the wrong
+reason while one reversal turned out to have been a mistake.
+
+| FlyRank's statement | Effect |
+|---|---|
+| queues are generated separately for each client | **confirms** Decision 1, which had rested on inference from account-based pricing |
+| customized rather than limited to a global top 50 | **confirms** dropping the global K = 50 queue |
+| rebuilt **weekly** | **overturns** the monthly cadence — and re-reverses a change this log recorded as a correction |
+| the automated workflow can process **thousands of pages per day** | **overturns** "capacity binds, not ranking quality", the 4.2% ceiling, and K = 100 as a defensible fixed choice |
+| treat K as a **configurable per-client budget** | K becomes a parameter to sweep, not a constant |
+| report **macro** client metrics | **reverses** this report's pooled-first convention |
+| test several K values and outcome windows rather than tying a 30-day label to the queue cadence | **overturns** the label-window justification and defines new work |
+
+**What this does not touch.** Every model comparison was run at one K against one label, so the
+ordering of models is unaffected — ridge still leads, `SAFE` still fails to transfer, the ML-07 rule
+still ranks below random. The leakage findings, the shared-denominator artefact, the null simulations
+and the walk-forward staleness result are all independent of K and cadence. What moves is everything
+phrased as *coverage* or *ceiling*, and the reporting convention.
+
+**Owed in ML-10, and now specified rather than guessed:** a sweep over K, a sweep over outcome
+window, macro metrics reported beside pooled, and a weekly-spaced rebuild of the walk-forward.
 
 ### Status claims corrected
 

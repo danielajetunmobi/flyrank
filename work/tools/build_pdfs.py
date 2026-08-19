@@ -64,15 +64,27 @@ CODE = ParagraphStyle("CODE", parent=SS["Code"], fontSize=6.6, leading=8.2,
                       textColor=colors.HexColor("#222222"))
 OUTP = ParagraphStyle("OUTP", parent=SS["Code"], fontSize=6.4, leading=8,
                       textColor=colors.HexColor("#0b4f6c"))
+LIST = ParagraphStyle("LIST", parent=BODY, leftIndent=5 * mm, spaceAfter=2)
 
 
 def esc(t: str) -> str:
     return (t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
+_LIST_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
+
+
 def md_to_flowables(src: str, max_chars: int = 100_000) -> list:
     """Render a markdown cell as flowables. Tables become real tables."""
     out, buf, rows = [], [], []
+    listing = False
+
+    def flush():
+        nonlocal buf, listing
+        if buf:
+            out.append(para(_inline(" ".join(buf)), LIST if listing else BODY))
+            buf = []
+
     for raw in src[:max_chars].split("\n"):
         line = raw.rstrip()
         if line.startswith("|") and line.count("|") >= 2:
@@ -81,33 +93,41 @@ def md_to_flowables(src: str, max_chars: int = 100_000) -> list:
                 rows.append(cells)
             continue
         if rows:
+            flush(); listing = False
             out.append(_table(rows)); rows = []
         if not line.strip():
-            if buf:
-                out.append(para(_inline(" ".join(buf)), BODY)); buf = []
+            flush(); listing = False
             continue
         # A horizontal rule. Without this it is not a heading, a table or blank,
         # so it lands in buf and prints as a literal "---" paragraph. The
         # notebooks rarely use one; the capstone report uses ten.
         if re.fullmatch(r"[-*_]{3,}", line.strip()):
-            if buf:
-                out.append(para(_inline(" ".join(buf)), BODY)); buf = []
+            flush(); listing = False
             out.append(Spacer(1, 3 * mm))
             continue
         if line.startswith("#"):
-            if buf:
-                out.append(para(_inline(" ".join(buf)), BODY)); buf = []
+            flush(); listing = False
             level = len(line) - len(line.lstrip("#"))
             out.append(para(_inline(line.lstrip("# ").strip()),
                                  H2 if level <= 2 else H3))
             continue
         if line.startswith(">"):
             line = line.lstrip("> ").strip()
+        # A list item ends the previous paragraph and starts an indented one.
+        # Without this every bullet in a block runs into its neighbours as one
+        # paragraph with stray "-" characters mid-sentence.
+        m = _LIST_RE.match(line)
+        if m:
+            flush()
+            listing = True
+            # Keep an ordered list's numbers: the capstone's reproducibility
+            # gaps are referred to elsewhere as "gap 3" and "gap 4".
+            marker = m.group(0).strip()
+            line = ("•" if marker in "-*+" else marker) + " " + line[m.end():]
         buf.append(line)
     if rows:
         out.append(_table(rows))
-    if buf:
-        out.append(para(_inline(" ".join(buf)), BODY))
+    flush()
     return out
 
 
