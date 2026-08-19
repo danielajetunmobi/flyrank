@@ -42,6 +42,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# Prose here uses en dashes, arrows and the Unicode minus, which the Windows
+# console's cp1252 codec cannot encode. Printing a failure that contained one
+# crashed the report half-written -- the tool has to survive printing its own
+# findings, or a real defect gets hidden behind a traceback.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 NOTEBOOKS = sorted(glob.glob(str(ROOT / "work" / "notebooks" / "*.ipynb")))
 PROSE_FILES = [ROOT / "work" / "capstone_report.md"]
 DOC_GLOBS = ["docs/**/*.md", "README.md", "GUIDE.md"]
@@ -74,6 +81,9 @@ ALLOWED = {
     "0.080": "Pearson position/CTR from notebooks/01_first_look_and_discovery.ipynb, outside work/",
     "4,964": "ga4_pageviews max on ML-04's five-month window, superseded when the sweep was widened "
              "to the whole warehouse; named in the note explaining why the window mattered",
+    "0.2449": "one of the two drifting lifts from ML-09's unordered cohort_at; named in the note "
+              "recording the bug, and no longer produced now that the ORDER BY is restored",
+    "0.2424": "the other drifting lift from the same bug; same reason",
 }
 
 TOKEN_RE = re.compile(

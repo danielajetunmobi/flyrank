@@ -21,6 +21,12 @@ import re
 import sys
 from pathlib import Path
 
+# Notes and prose here carry the Unicode minus (U+2212), which the Windows
+# console's cp1252 codec cannot encode -- printing one aborted the run after
+# every check had already passed. Force UTF-8 so a passing run reports as one.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = sorted(glob.glob(str(ROOT / "work" / "notebooks" / "*.ipynb"))) + [
     str(ROOT / "work" / "capstone_report.md")
@@ -39,6 +45,14 @@ SHARED = {
                          "ML-07 used one shuffle per seed, ML-08 twenty; 0.5132 is the estimate to use"),
     "ML-07 rule vs random": (r"−0\.0391|-0\.0391|−0\.0250|-0\.0250", 0.02,
                              "the rule ranks below random; two pools, so a spread is expected"),
+    # ML-09's walk-forward made this one load-bearing: every grouped split in the
+    # project sits at D1's gated decline rate, so if this drifts, every stability
+    # range quoted anywhere is quoting a different pool than it claims.
+    "D1 gated decline rate": (r"0\.5131", 0.001,
+                              "the base rate all ten grouped-split seeds share"),
+    "D2 gated decline rate": (r"0\.7873|0\.7869", 0.001,
+                              "ML-08 scores at 2026-05-31, ML-09's walk at 2026-06-01; "
+                              "one day apart, so these must stay near-identical"),
 }
 
 

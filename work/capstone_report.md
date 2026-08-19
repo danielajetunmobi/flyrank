@@ -3,12 +3,11 @@
 - **Author:** danielajetunmobi
 - **Lane:** Freestyle — Growth / Recovery / Momentum Prediction
 - **Repo:** https://github.com/danielajetunmobi/flyrank
-- **Date:** 2026-07-28 (living document — updated as each assignment lands)
+- **Date:** 2026-08-19 (living document — updated as each assignment lands)
 
-> **Status:** sections 1, 2 and 8 reflect completed work (ML-02 → ML-05). Sections 3–7
-> are scaffolded with what is currently known and marked **NOT YET DONE** where the
-> assignment that produces them (ML-06 → ML-10) has not been reached. Nothing below
-> claims a result that has not been computed.
+> **Status:** sections 1–6, 8 and 9 reflect completed work (ML-02 → ML-09). **Section 7 is the
+> only one still marked NOT YET DONE**, because ML-10 (`w07_action_playbook.ipynb`) has not been
+> reached. Nothing below claims a result that has not been computed.
 
 ---
 
@@ -207,7 +206,10 @@ the 90-day average hides real recoveries behind stale history (recovery rate 18.
 backlinks), `prior_trend_pct`, content age and freshness, `ctr` / `engagement_rate` / `scroll_rate`,
 `days_with_impressions` / `days_with_sessions`, `word_count` / `char_count` / `category_count`, and
 five `has_*` missingness flags. Categorical encoding (`main_intent`, `content_type`,
-`competition_level`) is deferred to the modelling stage.
+`competition_level`) is deferred to the modelling stage. **Settled in ML-08:** `main_intent` and
+`competition_level` are unusable — two clients have none of either, so including them would rank
+data coverage rather than page health — and `content_type`, the one that is universally present,
+moves `P@100` from 0.7563 to **0.7562**. No categorical is in the final feature set.
 
 **Missing-value policy.** Flag first, then fill — never a blind zero where zero is a meaningful
 extreme. `has_*` indicators are computed before any fill, so "unknown" and "genuinely zero" stay
@@ -378,8 +380,23 @@ from its own history leaves the FULL models only **+0.04** above the null's own 
 **+0.21** on the real future. The rest is genuine prediction — the first result in this project to
 survive that test.
 
-**Roughly half the advantage transfers to an unseen month.** Trained at D1, scored once at D2:
-**+0.1291** over random, against **+0.2436** at D1 — **53%** retained.
+**The advantage transfers to an unseen month essentially intact.** Trained at D1, scored once at D2:
+**+0.1291** over random, against **+0.2436** at D1 — **53%** retained. That 53% was read as decay until
+ML-09 walked four decision points forward and found it is not. Holding the test month fixed and moving
+only the training date — the controlled version of the question — a **92-day-old** model scores
+**0.1238** where a 31-day-old one scores **0.1242**, a gap of **0.0009**. What falls between D1 and D2
+is the headroom, not the skill: D2's pool declines at 0.7873 against 0.5131, so the most any ranker
+could gain fell from 0.4869 to **0.2131**. Measured against what was available, capture stays in a
+**33.5% - 58.3%** band, mean **47.4%**, and the last month is the **highest** of the three forward
+steps at **0.5829**. Fresher is still directionally better — the within-month correlation between
+staleness and lift is **-0.7541** — but the largest penalty measured anywhere is **0.0194**, against a
+**0.2415** to **0.1242** swing driven purely by which month is scored.
+
+**The base rate is not stationary, and no split in this project could see that.** It runs
+**0.3169 → 0.5131 → 0.6146 → 0.7869** across four monthly decision points. Every grouped split — all
+ten seeds, every stability range quoted in this report — resamples clients at D1 and therefore holds
+the base rate fixed at 0.5131. Those splits measure variation between clients; variation over time was
+invisible to them by construction.
 
 **All three items ML-09 owed are now closed** (`w06_validation_audit.ipynb`). The 0.458 client is a
 capacity artefact — 72 pages against 100 slots, so the queue took every page and precision equalled
@@ -635,20 +652,27 @@ token either as `HF_TOKEN` in a local `.env` (gitignored) or at the `getpass` pr
 `w03_feature_leakage_check`. Each is self-contained and re-downloads what it needs.
 
 **Known reproducibility gaps (honest list):**
-1. **The computed feature vector is not cached** — `work/outputs/` is empty, so the aggregation,
-   joins and feature engineering are recomputed on every run. (The underlying Parquet files *are*
-   cached automatically by `huggingface_hub`, so this costs seconds of recompute, not a repeat
-   download.) Caching is deliberately **deferred until after ML-06**: hypothesis 3 in section 5
-   proposes relaxing the `trend_recent_impr > 0` cohort filter, and a cache written now would
-   bake that filter in — a later session could load it and test the hypothesis against
-   already-filtered data. `work/outputs/*.parquet` is gitignored and CI hard-fails on committed
-   Parquet, so caching will be safe once the cohort definition is settled.
+1. **The computed feature vector is still not cached**, so the aggregation, joins and feature
+   engineering are recomputed on every run. (The underlying Parquet files *are* cached
+   automatically by `huggingface_hub`, so this costs seconds of recompute, not a repeat download.)
+   Caching was **deferred until after ML-06** because hypothesis 3 proposed relaxing the
+   `trend_recent_impr > 0` cohort filter and a cache written first would have baked that filter in.
+   **That condition has now expired** — ML-06 Test 8 closed hypothesis 3 (the filter inflates the
+   decline rate by 12.6 points at D1) and ML-07 froze the gate — so the reason for deferring is
+   gone and the work simply has not been done. `work/outputs/*.parquet` is gitignored and CI
+   hard-fails on committed Parquet, so caching is safe to add whenever it is wanted.
 2. **The remote host is intermittently unreliable.** Repeated `ZSTD Decompression failure`
    errors on `hf://` reads during development; a re-run may need retries.
-3. **Single decision point.** Every number rests on 2026-03-31. No walk-forward across multiple
-   decision dates, so none of these figures is known to be stable month to month.
-4. **Only one of three targets is built.** `future_recovery` and `future_momentum` are defined
-   but have never been modelled or evaluated.
+3. **Most figures rest on one decision point, but no longer all of them.** The headline numbers are
+   measured at 2026-03-31. ML-08 added a second scored date and ML-09 §8 walks **four** decision
+   points, which is the most the warehouse allows. What that walk found is not reassuring and is
+   reported in section 5: the decline rate runs **0.3169 → 0.5131 → 0.6146 → 0.7869** across four
+   months, so any single-date figure quoted without its base rate is not comparable month to month.
+4. **`future_recovery` and `future_momentum` are not modelled, and no longer exist to model.** Both
+   were binary targets under the design replaced on 08-05 by the single continuous `asinh`
+   difference (section 2, and the revision log in section 9). Direction is read off the sign of one
+   target rather than from three separate models, so there is nothing outstanding here — this item
+   is retained only because earlier drafts listed it as a gap.
 
 ---
 
@@ -687,6 +711,8 @@ figures are still present and still labelled with the design they measured.
 | Test 3 and the simulation differ because sparse pages suffer more | they were never the same quantity | the simulation never applies the exclusion, so 12.6 was never comparable with 46.2 |
 | consecutive 30-day means correlate at **r ≈ 0.89** | Pearson **0.799**, Spearman 0.823 | carried in from other work; ML-06 contained no autocorrelation code until it was added |
 | `Spearman(peak_ratio, target)` = **−0.044** | **−0.0665** (D1), **−0.1505** (D2) | came from a scratch script, measured against the superseded log target |
+| the model **retains 53%** of its advantage on an unseen month | 53% is a ratio between two different **ceilings**, not a decay rate | ML-09 walked four decision points forward, then held the test month fixed and moved only the training date. Over a 31-to-92-day span of staleness the lift moves **0.0009**; over the same walk the base rate moves 0.3169 to 0.7869 and the lift moves 0.2415 to 0.1242 |
+| the walk's own lift figures, first run | drifted **0.2449 → 0.2424** between identical runs | `cohort_at` returned rows in DuckDB's aggregation order; `queue_precision` breaks score ties positionally and the random baseline assigns draws positionally, so the bar moved every run. **This is a recurrence** — the same bug is already in the data-corrections table below, fixed once in the source query, then reintroduced by a new helper that did not carry the `ORDER BY` forward. Caught because two cells that should have agreed disagreed; fixed, then verified by running the notebook twice and diffing |
 
 ### Data corrections
 
@@ -699,6 +725,24 @@ figures are still present and still labelled with the design they measured.
 | 30-day future window divided by 30, not 31 or 90 | an off-by-one moved the label 49.62% → 50.95%; the 90-day error moved recovery 18.3% → 28.2% |
 | `ORDER BY content_hash_id` added to the source query | without it, fixed-seed splits differed between runs |
 
-**One methodological note.** Several of the withdrawn findings share a cause: analysis run in a scratch
+### Status claims corrected
+
+A sweep of the notebooks for promises made and not kept, run after ML-09. Most held: ML-06's Tests
+5–10 delivered every check it named, `recall@100` is reported throughout ML-08 as its section 1
+demanded, and ML-09 closed all three items the capstone said it owed. These did not.
+
+| stale claim | what was actually true |
+|---|---|
+| status header: "sections 1, 2 and 8 reflect completed work (ML-02 → ML-05)… ML-06 → ML-10 has not been reached" | ML-06 → ML-09 were all complete; only section 7 was outstanding |
+| gap 3: "no walk-forward across multiple decision dates" | ML-08 scored a second date and ML-09 §8 walks four |
+| gap 4: "only one of three targets is built… `future_recovery` and `future_momentum` have never been modelled" | both stopped existing on 08-05 when three binary targets became one continuous one — contradicting this document's own section 2 |
+| gap 1: "`work/outputs/` is empty" | it holds `baseline_action_score.csv`. The *substance* stands — no feature cache — but the reason given for deferring it expired when ML-06 Test 8 closed hypothesis 3 |
+| section 2: categorical encoding "deferred to the modelling stage" | ML-08 settled it; two of the three are unusable and the third moves `P@100` by −0.0001 |
+| ML-06 carried an unfilled template line duplicated below its own heading | removed |
+
+**Two methodological notes.** Several withdrawn findings share a cause: analysis run in a scratch
 script and then described in prose, rather than recomputed in the notebook that quotes it. Exploring
-outside the notebook is fine; anything that survives into it has to be computed there.
+outside the notebook is fine; anything that survives into it has to be computed there. And the stale
+claims above share a different one — they were all written as *forward-looking* statements ("deferred
+until…", "has not been reached") that no step in the process ever revisits. A promise dated to a
+milestone needs re-reading when that milestone lands; nothing here did that automatically.

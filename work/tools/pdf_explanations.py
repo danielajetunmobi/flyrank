@@ -292,4 +292,36 @@ EXPLAIN = {
    "five orders of magnitude -- while boosting gains +0.0120 and still trails. What the tuner asks "
    "for matters more than the gain: every seed picked the lower learning rate and most picked "
    "shallower trees, so the search is trying to make the ensemble more linear.",
+ ("w06_validation_audit", 31):
+   "Walk-forward validation, the one thing every split in this project was structurally unable to "
+   "test. cohort_at() rebuilds the ML-08 cohort, target and frozen gate at an arbitrary decision "
+   "date, so the same pipeline can be re-run at four points spaced a month apart -- the most the "
+   "warehouse allows, since each point needs 90 days of history and a 30-day outcome and the daily "
+   "rows only span 2025-12-01 to 2026-06-30. The loop then trains at each point and scores at the "
+   "next, never backwards. Note queue_precision is redefined locally: the ML-08 helper lives in "
+   "another notebook, and the first run of this cell died on that NameError. The printed cohort "
+   "line matters more than the walk itself -- it shows the decline rate climbing from 0.3169 to "
+   "0.7869 across four months, while every grouped split in the project sits at the single D1 "
+   "value of 0.5131.",
+ ("w06_validation_audit", 33):
+   "Decomposes the retention figure rather than accepting it. The walk retained a mean 83.6% where "
+   "ML-08 reported 53%, and the tempting explanation -- decay with horizon, since ML-08's gap was "
+   "61 days against these 31 -- is tested and rejected here: ML-08 scored 0.1291 on a pool "
+   "declining at 0.7873 and the last walk step scored 0.1251 on a pool declining at 0.7869, so a "
+   "model twice as stale did the same work on the same month. The cell re-keys every lift by the "
+   "month it was SCORED on, ignoring where the model came from, and divides each by the headroom "
+   "that month allows (1 - base_rate), since a queue drawn from a pool declining at 0.79 cannot "
+   "beat random by more than 0.21 however good it is. Retention is a ratio, and both runs differ "
+   "in the denominator, not the numerator.",
+ ("w06_validation_audit", 35):
+   "The controlled version of the previous cell's argument. Comparing ML-08's 61-day-stale model "
+   "against this walk's 31-day one confounds staleness with two other differences: ML-08 fits FULL "
+   "(5 features) where the walk fits LEAN (4, dropping content_age_days), and the two score one day "
+   "apart off differently-built pools. This cell removes both. It fixes the test month, then trains "
+   "the identical pipeline at every earlier decision point, so the only variable left is how old "
+   "the training data is. Because the cohorts are already in coh, the whole experiment is free. "
+   "Reading it: if lift barely moves as the training date recedes, staleness is not what drives the "
+   "number, and the falling lift across the walk has to be explained by the rising base rate "
+   "instead. The random reference is drawn once per test month so every training date on that month "
+   "is scored against the same bar.",
 }
