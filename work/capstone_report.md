@@ -64,6 +64,7 @@ this repo is public.
 | `ai_copilot`, `ai_claude`, `ai_meta`, `ai_other` | 100.0% zero across every content item in the window — zero variance |
 | `sessions_ai`, `ai_chatgpt/perplexity/gemini`, `sessions_referral/social/paid` | Traffic channels with no plausible link to a GSC-impression-based label (sparsity was secondary) |
 | `client_hash_id`, `content_hash_id`, `keyword_hash_id`, `url_hash_id` | Pseudonyms — grouping, joining and splitting only, never features |
+| `is_active`, `has_gsc_access`, `has_ga4_access`, `access_profile` (all `dim_clients`) | **Client-level**: `dim_clients` holds one row per client, so these are constant inside a client. The queue ranks pages *within* a client, and a client-constant cannot reorder anything there. `access_profile` is used in ML-04 as a data-quality diagnostic — it found 10 of 104 clients with no `dim_clients` record — never as a feature. Recorded because the exclusion was correct but had never been written down |
 
 **Leakage risks considered.** Timeline verified: every feature is drawn from
 2025-12-31 → 2026-03-30; the label window opens 2026-03-31; no overlap. Three explicit
