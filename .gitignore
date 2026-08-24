@@ -39,3 +39,6 @@ venv/
 # work/tools/build_docs.py, so the generator is the source of truth and the
 # artefacts do not belong in the repo.
 work/outputs/*.pdf
+# generated numbers: check_claims.py does not scan these, so a committed copy
+# becomes a second source of truth that can drift from the notebook silently
+work/outputs/*.json

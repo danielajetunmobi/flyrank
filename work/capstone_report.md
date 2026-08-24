@@ -5,9 +5,9 @@
 - **Repo:** https://github.com/danielajetunmobi/flyrank
 - **Date:** 2026-08-19 (living document — updated as each assignment lands)
 
-> **Status:** sections 1–6, 8 and 9 reflect completed work (ML-02 → ML-09). **Section 7 is the
-> only one still marked NOT YET DONE**, because ML-10 (`w07_action_playbook.ipynb`) has not been
-> reached. Nothing below claims a result that has not been computed.
+> **Status:** every section reflects completed work (ML-02 → ML-10). Nothing below claims a result
+> that has not been computed, and section 9 records what was withdrawn along the way — including
+> three findings this project stated and then disproved itself.
 
 ---
 
@@ -422,7 +422,17 @@ staleness and lift is **-0.7541** — but the largest penalty measured anywhere 
 **0.2415** to **0.1242** swing driven purely by which month is scored.
 
 **The base rate is not stationary, and no split in this project could see that.** It runs
-**0.3169 → 0.5131 → 0.6146 → 0.7869** across four monthly decision points. Every grouped split — all
+**0.3169 → 0.5131 → 0.6146 → 0.7869** across four monthly decision points.
+> ⚠️ **Attribution corrected by ML-10 §4b (2026-08-19).** The base rate does move, and the grouped
+> splits are blind to it — both stand. **What moves is the panel, not the clients.** Panel-wide
+> impressions per page-day rise through spring and fall through June, and since the target compares a
+> page's future against a baseline 30–90 days earlier, an early decision point measures a rising
+> future against a low baseline while a late one measures the reverse. A panel-level ratio that knows
+> nothing about any individual page explains **95.7%** of the decline rate's movement (R² 0.9573,
+> correlation −0.9784) across fourteen weekly decision points. Calling this "the pool this model would
+> be pointed at" overstates it: a decline rate says more about where its date sits on the panel's
+> curve than about anyone's content. The ranking is unaffected — a panel-wide shift moves every page
+> in a cohort together — which is why share of ceiling holds at 45.8% while the base rate doubles. Every grouped split — all
 ten seeds, every stability range quoted in this report — resamples clients at D1 and therefore holds
 the base rate fixed at 0.5131. Those splits measure variation between clients; variation over time was
 invisible to them by construction.
@@ -658,10 +668,53 @@ says so. But it does mean the reference pipeline's numbers should not be used as
 
 ## 7. Recommendation
 
-**NOT YET DONE** — ML-10 (`w07_action_playbook.ipynb`).
+*Source: `work/notebooks/w07_action_playbook.ipynb`.*
 
-No ranked recommendations can honestly be issued yet: no model has beaten a baseline, and no
-baseline has been built. Publishing a queue now would be presenting noise as decision support.
+**Ship the ordering. Do not ship any number attached to it.** Across every test the model survived,
+what held was the *rank*; what moved was the *level*. The ranking is monotonic across all ten
+predicted deciles, beats random on **13 of 13** forward weekly steps, and holds **45.8%** of its
+available ceiling (sd **5.4%**) while the pool's decline rate more than doubles. Over the same weeks
+raw `P@100` lift fell **0.2559 → 0.1140**. A queue is defensible; a precision figure quoted without
+its base rate is not.
+
+**Run the queue inside two segments, not as one list.** A page already below its own 90-day average
+declines **76.41%** of the time — that is a one-line filter, and the model adds only **+0.0787** on
+top of it. On pages that have *not* started falling, where a filter leaves you at **40.69%**, the
+model adds **+0.2186**. Normalised for headroom the skill is comparable (**33.4%** against **36.9%**
+of ceiling), so this is not about where the model works — it is about where a rule already suffices.
+The global score sends **82.3%** of top-of-queue slots to the segment that needs it least, because
+`peak_ratio` dominates the ordering.
+
+**Set K per client, and keep it small.** Lift falls monotonically with budget — **0.3719** at K = 10
+against **0.2492** at K = 500, and exactly **0.0000** at K = all, which is the control behaving. The
+advantage is concentrated at the top of each list. **13 of 30** clients receive their entire eligible
+pool at K = 100 and are not being ranked at all; those clients should be told they are getting a
+filter.
+
+**Stop at decile 5.** Decile 6 is the first no better than the pool base rate, and by decile 10 pages
+decline at **0.2081** against a pool rate of **0.5131** — the model is actively identifying them as
+healthy. Reviewing below the halfway mark is worse than sampling the pool at random.
+
+**Apply a volume floor and route dead pages elsewhere.** The bottom volume quartile (`impr_90d` under
+**288**) captures only **30.2%** of its ceiling, and **19.38%** of the top 100 per client are pages
+that reach zero — median `impr_90d` of **16** against **896** for the live pages beside them. A page
+at zero needs a redirect or a merge, which is irreversible in a way a content edit is not, and is not
+a decision this model has any standing to inform.
+
+**Choose the outcome window operationally.** Capture is flat from a 7-day horizon to a 90-day one
+(**53.7% - 59.2%**, mean **56.5%**), so the label need not match the rebuild cadence — which is what
+FlyRank asked for, and it costs nothing.
+
+**Monitor share of ceiling, not precision, and retrain rarely.** Raw lift correlates **−0.9135** with
+the base rate, so a dashboard plotting it would show freefall and trigger a retrain of a model that
+never degraded. Staleness costs **0.0009** over 92 days. Alert instead when share of ceiling drops
+below **35.0%**, treating that floor as provisional — it was derived in-sample from the same thirteen
+steps it was tested on.
+
+**What must not be claimed.** That the model forecasts *how much* traffic will move (R² **0.0026**);
+that acting on a queued page caused what followed; that a decline rate says anything about a client,
+since a panel-level ratio explains **95.7%** of its movement; or that any of this is validated beyond
+the single decision point and one 92-day window the warehouse allows.
 
 ---
 
@@ -731,6 +784,7 @@ figures are still present and still labelled with the design they measured.
 | 08-19 | per-client at K = 100, monthly → **per-client at configurable K, weekly** | FlyRank answered directly. The row above got the scope right and the cadence wrong: "weekly" was the client deliverable after all. K = 100 came from an audit tier that bounds nothing — the workflow processes thousands of pages per day |
 | 08-19 | pooled metrics → **macro client metrics as the headline**, pooled retained | FlyRank asks for macro. The 48.5% withdrawal below stands on its own terms — macro numerator against pooled baseline — but the inference that pooling was therefore the right convention does not |
 | 08-19 | 30-day outcome window tied to the queue cadence → **swept independently** | tying the label to the rebuild interval was a convenience ("no sliding-horizon problem"), and FlyRank rejected it: several K values and several outcome windows, tested separately |
+| 08-19 | ML-09: "the pool this model would be pointed at is not stationary" → **the panel is not stationary** | ML-10 §4b. A panel-level ratio, blind to every individual page, explains **95.7%** of the decline rate's movement (R² 0.9573). The observation and the splits' blindness to it both stand; the attribution to client behaviour does not |
 
 ### Findings that were withdrawn
 
