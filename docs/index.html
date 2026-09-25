@@ -46,7 +46,8 @@
   <a href="#s6">Limits</a>
   <a href="#s7">Recommendations</a>
   <a href="#s8">Reproducibility</a>
-  <a href="#sa">Appendix</a>
+  <a href="#sa">Withdrawn</a>
+  <a href="#sb">Revision log</a>
 </nav>
 
 <section id="s0" class="abstract">
@@ -76,7 +77,7 @@
 
   <p>The work uses the gated <code>FlyRank/internship-warehouse</code> release: <code>fact_content_daily_performance</code>, <code>dim_content</code> and <code>dim_clients</code>. Access is by a Hugging Face token supplied at runtime &mdash; never written into a cell, since the repository is public. Every feature in the model is drawn from the window <strong>2025-12-31 to 2026-03-30</strong>; the label window opens <strong>2026-03-31</strong>. No feature window overlaps the label window, and the timeline was verified rather than assumed.</p>
 
-  <p>Exclusions were as consequential as inclusions:</p>
+  <p>Getting to that sentence took a full contract pass over the warehouse. Every column in <code>dim_content</code> is accounted for &mdash; four identifiers, two pipeline-metadata fields, and twenty candidates each either in the model or excluded with a measured reason, rather than a judgement call. The exclusions were as consequential as the inclusions:</p>
 
   <div class="scroll">
   <table>
@@ -87,13 +88,25 @@
     <tbody>
       <tr><td class="wrap">The target columns and the window they are computed from</td><td class="wrap">The label itself.</td></tr>
       <tr><td class="wrap">The fixed-window query table</td><td class="wrap">Its window runs <strong>2026-04-02 &rarr; 2026-06-30</strong> and overlaps the label window, so any column from it leaks the future.</td></tr>
-      <tr><td class="wrap">Content optimisation dates</td><td class="wrap"><strong>87.8%</strong> missing, and the sparsity plus the naming suggest they populate only when FlyRank's own system acted on a page &mdash; a product decision recorded as though it were a page property.</td></tr>
+      <tr><td class="wrap">Content optimisation dates</td><td class="wrap"><strong>87.8%</strong> missing, and the sparsity plus the naming suggest they populate only when FlyRank's own system acted on a page &mdash; a product decision recorded as though it were a page property. A second check measured them as sitting after the decision point for <strong>100.0%</strong> of populated rows.</td></tr>
       <tr><td class="wrap">Traffic-channel columns</td><td class="wrap">No plausible link to an impressions-based label, and the AI channel flags are <strong>100.0%</strong> zero across the window &mdash; zero variance.</td></tr>
       <tr><td class="wrap">All hashed ID columns</td><td class="wrap">Pseudonyms. Used for grouping, joining and splitting; never as features.</td></tr>
       <tr><td class="wrap">Client-level fields</td><td class="wrap">They hold one row per client, so they are constant within a client and cannot reorder a client's own queue. Correct to exclude, and never previously written down.</td></tr>
     </tbody>
   </table>
   </div>
+
+  <h3>Four corrections to the contract, one of which moved the label</h3>
+
+  <p><strong>Position is zero-based.</strong> The warehouse follows Google Search Console's bulk-export convention, where <strong>0</strong> is the top rank, so an average position has to be computed as a sum of positions over a sum of impressions and then offset. The repository's own starter file uses the opposite rule, where a zero means <em>missing</em> &mdash; and applying that rule here deletes each page's best days for <strong>53.4%</strong> of the cohort. Which convention this warehouse follows was not assumed; the leakage notebook carries a six-check experiment that established it.</p>
+
+  <p><strong>Position is impression-weighted, not a mean of daily means.</strong> A page's busy days now count for more than its quiet ones. Every aggregate in the model is computed by summing and then dividing, never by averaging per-day rates.</p>
+
+  <p><strong>The future window compares against the recent thirty days, not the ninety-day average.</strong> Using the longer average buries real recoveries behind stale history: the measured recovery rate moves from <strong>18.3%</strong> to <strong>28.2%</strong> under the shorter baseline.</p>
+
+  <p><strong>An off-by-one in that window moved the headline.</strong> Dividing the thirty-day future window by thirty rather than by thirty-one or ninety moved the label from <strong>49.62%</strong> to <strong>50.95%</strong> &mdash; the kind of error that is invisible in a chart and decisive in a metric.</p>
+
+  <h3>Two things that leaked, and how they got through</h3>
 
   <p><strong>One leak got through the first audit, and the way it got through is the lesson.</strong> The leakage hunt checked the timeline of the fact tables carefully and never asked the same question of the dimension table. <code>dim_content</code> turned out to be an <strong>export-time snapshot</strong> rather than a point-in-time record: its update date falls <em>after</em> the decision point for the large majority of cohort pages, and a single bulk date accounts for <strong>204,409</strong> items, or <strong>39.3%</strong> of all content. A feature built from it was leaking, and has been removed. A related consequence: a filter that excluded deleted and unpublished pages was itself selecting on the outcome window &mdash; judging a March decision by a July status &mdash; and was reverted.</p>
 
@@ -138,13 +151,76 @@ score: age</code></pre>
 <section id="s4">
   <h2><span class="num">4</span> Method</h2>
 
-  <p><strong>The label is a difference of log-scaled rates, not a percentage.</strong> Each page's forward rate over the thirty days after the decision date is compared with its baseline rate, both passed through <code>asinh</code> before subtracting. The inverse hyperbolic sine behaves like a logarithm for large values but is finite at and below zero, which matters because <strong>7.4%</strong> of the cohort reaches zero impressions. Where both are defined the two transforms agree at rank correlation <strong>+0.9546</strong>; where the ratio is undefined, <code>asinh</code> still produces a number. A continuous target was chosen over the inherited three-way binary split partly for that reason and partly because binarising made a 21% dip and a 95% collapse the same label while &minus;19% and &minus;21% became opposite classes.</p>
+  <h3>The label is a difference of log-scaled rates, not a percentage</h3>
 
-  <p><strong>Four features ship.</strong> Impressions over the ninety days to the decision date; average position, weighted by impressions so a page's busy days count for more than its quiet ones; a prior-trend term; and a peak-ratio term comparing the recent window against the page's own history. A fifth candidate, content age, was removed after a permutation test measured its contribution at <strong>&minus;0.0645</strong> &mdash; the model scored better without it.</p>
+  <p>Each page's forward rate over the thirty days after the decision date is compared with its baseline rate, both passed through <code>asinh</code> before subtracting. The inverse hyperbolic sine behaves like a logarithm for large values but is finite at and below zero, which matters because <strong>7.4%</strong> of the cohort reaches zero impressions, rising to <strong>13.7%</strong> at the second decision point. Where both are defined the two transforms agree at rank correlation <strong>+0.9546</strong>; where the ratio is undefined, <code>asinh</code> still produces a number.</p>
 
-  <p><strong>Ridge regression.</strong> Four algorithms were compared on two feature sets across the same ten client-grouped splits. Ridge led on the declared primary metric, rank agreement, by <strong>+0.0150</strong> over logistic regression and by more over the two gradient-boosting variants. Its margin on precision at 100 over logistic is only <strong>+0.0063</strong> &mdash; inside seed noise &mdash; so the model choice rests on the rank metric and on ridge's stability rather than on a decisive win.</p>
+  <p>The transform also deflates percentage swings at trivial volume, which a ratio exaggerates. The same <strong>50%</strong> drop, at four different page sizes:</p>
 
-  <p><strong>Each queue entry carries a reason.</strong> The model is linear on standardised features with all coefficients positive, so a page reaches the top of the queue by being <em>low</em> on something. The four reason codes, and the share of top-of-queue slots each one explains, are:</p>
+  <div class="scroll">
+  <table>
+    <caption>The same proportional fall, at four volumes. The log ratio cannot tell them apart; <code>asinh</code> can.</caption>
+    <thead>
+      <tr><th class="n">before, per day</th><th class="n">after, per day</th><th class="n">log ratio</th><th class="n">asinh difference</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="n">0.1</td><td class="n">0.05</td><td class="n">&minus;0.6931</td><td class="n"><strong>&minus;0.0499</strong></td></tr>
+      <tr><td class="n">1.0</td><td class="n">0.50</td><td class="n">&minus;0.6931</td><td class="n">&minus;0.4002</td></tr>
+      <tr><td class="n">10.0</td><td class="n">5.00</td><td class="n">&minus;0.6931</td><td class="n">&minus;0.6858</td></tr>
+      <tr><td class="n">100.0</td><td class="n">50.00</td><td class="n">&minus;0.6931</td><td class="n"><strong>&minus;0.6931</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>A ratio calls all four the same fifty-percent loss. Given a cohort whose median dead page ran <strong>0.13</strong> impressions a day, that deflation is the difference between a label about pages and a label about arithmetic.</p>
+
+  <p>A continuous target was chosen over the inherited three-way binary split for the same reason. Binarising made a 21% dip and a 95% collapse the same label while a 19% dip and a 21% one became opposite classes, and it split the cohort three ways.</p>
+
+  <h3>Dead pages get a second, separate treatment</h3>
+
+  <p>A page that reaches zero impressions is not a page with a low score &mdash; it needs a redirect or a merge, which is a different and less reversible decision. Those pages carry their own ranked flag: <strong>1,334</strong> at the first decision point, over <strong>34</strong> clients. <strong>87%</strong> of pages reaching zero were already running under one impression a day, so an ungated flag would have buried the <strong>136</strong> that lost ten or more a day.</p>
+
+  <p>The flag is <em>ranked</em> rather than merely listed, because it does not reliably fit any review budget: a median of 10 pages per client, but a tail reaching <strong>195</strong> at the first decision point and <strong>663</strong> at the second, with <strong>4</strong> clients overrunning a budget of 100 at the first and <strong>9</strong> at the second. Ranked, an overrun surfaces the largest losses first. Unranked, it would be least usable for exactly the clients worst affected.</p>
+
+  <h3>The feature audit, and what it rejected</h3>
+
+  <p>Twenty candidate features were examined against a model that ships four. The one that mattered most is the one that was removed:</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Permutation importance on the held-out fit. Shuffling a feature and measuring the damage; a negative value means the model scores better without it.</caption>
+    <thead>
+      <tr><th class="wrap">Candidate feature</th><th class="n">permutation importance</th><th class="wrap">Outcome</th></tr>
+    </thead>
+    <tbody>
+      <tr class="hi"><td class="wrap">peak ratio against own history</td><td class="n">0.6034</td><td class="wrap">shipped</td></tr>
+      <tr><td class="wrap">impression-weighted average position</td><td class="n">0.0073</td><td class="wrap">shipped</td></tr>
+      <tr><td class="wrap">impressions, ninety days</td><td class="n">0.0061</td><td class="wrap">shipped</td></tr>
+      <tr><td class="wrap">prior trend</td><td class="n">0.0038</td><td class="wrap">shipped</td></tr>
+      <tr><td class="wrap">content age</td><td class="n">&minus;0.0645</td><td class="wrap">removed</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Content age scored <strong>&minus;0.0645</strong>: shuffling it <em>improved</em> held-out fit. Dropping it gained on every metric at once &mdash; rank agreement <strong>0.5302 &rarr; 0.5546</strong>, precision at 100 <strong>0.7563 &rarr; 0.7612</strong>, AUC <strong>0.7584 &rarr; 0.7693</strong>. It correlates <strong>&minus;0.1981</strong> with the target and was collinear enough with the peak-ratio feature to split its coefficient. It was also the only point-in-time value in the set &mdash; a date difference rather than an aggregate &mdash; and the only one validation removed. Every feature that survived is a window aggregate, and effectively the model is one feature: the peak ratio holds <strong>0.6034</strong> against <strong>0.0073</strong> or less for everything else.</p>
+
+  <p><strong>Correlation with the target barely predicts whether a feature helps.</strong> The prior-trend term correlates <strong>+0.5438</strong> with the target and contributes <strong>0.0038</strong>. URL character count correlates <strong>&minus;0.2225</strong> and costs <strong>&minus;0.0185</strong>. The peak ratio absorbs what the others carry, which is why a feature-selection pass built on correlation alone would have kept the wrong four.</p>
+
+  <p><strong>The two features carrying the signal are the two carrying the artefact.</strong> A second, restricted set was built to include only columns that are universally available and that share no arithmetic with the target &mdash; content age, ninety-day impressions and average position. That definition necessarily excludes the prior-trend and peak-ratio terms, and those are precisely the two that carry the ordering. Restricted that way, logistic regression's rank agreement falls to <strong>0.0553</strong>, against <strong>0.5152</strong> for the same algorithm on the full set. Removing the artefact and removing the signal turn out to be the same operation, which is why the artefact was measured, published, and left in place rather than designed around.</p>
+
+  <p><strong>No categorical variable is in the final feature set</strong>, and the reason is coverage rather than usefulness. Two of the three &mdash; main intent and competition level &mdash; are unusable because two clients have none of either, so including them would rank data coverage rather than page health. The third, content type, is universally present and moves precision at 100 from 0.7563 to <strong>0.7562</strong>.</p>
+
+  <h3>Ridge regression over four features</h3>
+
+  <p>Four algorithms were compared on two feature sets across the same ten client-grouped splits. Ridge led on the declared primary metric, rank agreement, by <strong>+0.0150</strong> over logistic regression and by more over the two gradient-boosting variants. Its margin on precision at 100 over logistic is only <strong>+0.0063</strong> &mdash; inside seed noise &mdash; so the model choice rests on the rank metric and on ridge's stability rather than on a decisive win.</p>
+
+  <p>Boosting placed third for a reason worth recording: with R&sup2; near zero for every model, a squared-error objective spends its capacity on the part of the target that is not predictable. A ranking objective is the principled follow-up, not a hyperparameter sweep &mdash; and when that follow-up was actually run, a rank-transformed target bought <strong>+0.0004</strong>, leaving boosting <strong>0.0168</strong> behind ridge. The hypothesis was withdrawn rather than left standing as an excuse.</p>
+
+  <p>The same predictions serve the whole lane. Sorting them two ways and splitting on prior state gives three queues &mdash; decline <strong>+0.2111</strong> over random, momentum <strong>+0.1734</strong>, recovery <strong>+0.0962</strong> &mdash; where the inherited three-label design would have needed three separate models.</p>
+
+  <h3>Each queue entry carries a reason</h3>
+
+  <p>The model is linear on standardised features with all coefficients positive, so a page reaches the top of the queue by being <em>low</em> on something. The four reason codes, and the share of top-of-queue slots each one explains, are:</p>
 
   <div class="scroll">
   <table>
@@ -163,7 +239,9 @@ score: age</code></pre>
 
   <p>That distribution is a warning as much as a feature. One code &mdash; <em>running below its own 90-day average</em> &mdash; explains <strong>82.3%</strong> of the pages at the top of the queue, and the honest reading of a reason code is that it <em>says where to look, never why</em>. It restates the input that drove the score rather than explaining the page, and a reviewer who reads it as a diagnosis will be misled. It is a signpost, not a cause.</p>
 
-  <p><strong>Operating parameters come from FlyRank, not from inference.</strong> Most of this project's settings were originally inferred from public pricing copy because no authoritative answer existed. FlyRank later answered directly, and the answers changed four things: the queue is rebuilt <strong>weekly</strong>; its size is a <strong>configurable per-client budget</strong> rather than a fixed global top 50; metrics should be reported <strong>macro</strong> across clients, with pooled figures retained alongside; and the label's outcome window should be swept independently of the rebuild cadence rather than tied to it. Two of the earlier guesses turned out to be right for the wrong reasons, and one recorded "correction" had been a mistake. All model comparisons were run at one budget against one label, so the ordering of models is unaffected by these reversals; what moves is anything phrased as coverage or ceiling, and the reporting convention.</p>
+  <h3>Operating parameters come from FlyRank, not from inference</h3>
+
+  <p>Most of this project's settings were originally inferred from public pricing copy because no authoritative answer existed. FlyRank later answered directly, and the answers changed four things: the queue is rebuilt <strong>weekly</strong>; its size is a <strong>configurable per-client budget</strong> rather than a fixed global top 50; metrics should be reported <strong>macro</strong> across clients, with pooled figures retained alongside; and the label's outcome window should be swept independently of the rebuild cadence rather than tied to it. Two of the earlier guesses turned out to be right for the wrong reasons, and one recorded "correction" had been a mistake. All model comparisons were run at one budget against one label, so the ordering of models is unaffected by these reversals; what moves is anything phrased as coverage or ceiling, and the reporting convention.</p>
 </section>
 
 <section id="s5">
@@ -191,14 +269,18 @@ score: age</code></pre>
 
   <p>Two sourcing notes, because this table is the one a reader is most likely to check. The macro column and the four-feature ridge row come from the executed capstone notebook; the remaining rows are the figures the model-selection notebook published on its own ten splits. Re-running them reproduces every linear model to four decimals &mdash; the two gradient-boosting rows differ by roughly five thousandths, which is histogram construction varying between scikit-learn builds rather than a difference in the data. And the baseline bar is quoted here as <strong>0.5132</strong>, the twenty-draw estimate; the executed comparison cell prints <strong>0.5049</strong> because it draws one shuffle per seed. That gap sits well inside the per-seed standard deviation of <strong>0.0178</strong>, which is why the averaged estimate is the one used.</p>
 
-  <p><strong>The ranking is monotonic, and it stops being useful halfway down.</strong> Across the ten predicted deciles the decline rate falls from <strong>0.8923</strong> in the top decile to <strong>0.2081</strong> in the bottom one, a spread of <strong>0.6842</strong> points and monotonic throughout. Decile 6 is the first that is no better than the pool's own base rate. By the bottom decile the model is not merely uninformative &mdash; it is identifying pages as healthy, and they decline at well under half the pool rate. Reviewing below the halfway mark is worse than sampling the pool at random.</p>
+  <h3>The ordering is monotonic, and it stops being useful halfway down</h3>
+
+  <p>Across the ten predicted deciles the decline rate falls from <strong>0.8923</strong> in the top decile to <strong>0.2081</strong> in the bottom one, a spread of <strong>0.6842</strong> points and monotonic throughout. Decile 6 is the first that is no better than the pool's own base rate. By the bottom decile the model is not merely uninformative &mdash; it is identifying pages as healthy, and they decline at well under half the pool rate. Reviewing below the halfway mark is worse than sampling the pool at random.</p>
 
   <figure>
     <img src="figures/deciles.png" alt="Line chart showing the actual decline rate of pages in each of ten predicted deciles, falling monotonically from the top decile to the bottom, with the pool's base rate drawn as a horizontal reference line crossing the curve between the fifth and sixth deciles.">
     <figcaption><span class="fignum">Figure 1.</span> The ordering is real and it runs out at decile 5 &mdash; below that line, a page the model likes is a page that is more likely than average to hold its traffic, which is the opposite of what a review queue is for.</figcaption>
   </figure>
 
-  <p><strong>The weekly walk is the strongest evidence here, and it is deliberately not flattering.</strong> The model was refit at each of fourteen weekly decision points and used to score the week that followed, giving thirteen forward steps. The proportion of the pool declining rose from <strong>0.3169</strong> to <strong>0.7873</strong> across those points &mdash; the pool more than doubles its decline rate over a single quarter. Against that moving target:</p>
+  <h3>The weekly walk is the strongest evidence here, and it is deliberately not flattering</h3>
+
+  <p>The model was refit at each of fourteen weekly decision points and used to score the week that followed, giving thirteen forward steps. The proportion of the pool declining rose from <strong>0.3169</strong> to <strong>0.7873</strong> across those points &mdash; the pool more than doubles its decline rate over a single quarter. Measured at four monthly decision points instead, the same quantity runs <strong>0.3169 &rarr; 0.5131 &rarr; 0.6146 &rarr; 0.7869</strong>. The target the model is aimed at does not hold still, and no grouped split in this project could see that, because every one of them resamples clients at a single date.</p>
 
   <div class="scroll">
   <table>
@@ -214,9 +296,52 @@ score: age</code></pre>
   </table>
   </div>
 
-  <p>The same walk also shows why the headline metric matters. Measured as raw lift, the model appears to collapse: it falls from <strong>0.2559</strong> to <strong>0.1140</strong> over the thirteen steps. Normalised against what was available in each week, it rises from <strong>0.6575</strong> to <strong>0.9135</strong>. Raw lift correlates <strong>&minus;0.9135</strong> with the base rate, which means a dashboard plotting it would show freefall and trigger a retrain of a model that had not degraded at all. A defensible alert floor is a share of ceiling below <strong>35.0%</strong>, set from the observed weekly variation &mdash; and that floor is provisional, since it was derived in-sample from the same thirteen steps it was tested on. On this walk it would have fired once.</p>
+  <figure>
+    <img src="figures/panel_vs_ceiling.png" alt="Two-panel chart. The upper panel shows the pool's decline rate rising steeply across the thirteen forward weekly steps. The lower panel shows the model's share of the available ceiling in each of those same weeks, holding roughly flat or rising. The two panels use separate vertical axes deliberately and are never overlaid.">
+    <figcaption><span class="fignum">Figure 2.</span> Two panels, never two axes: the decline rate of each step's test week more than doubles across the thirteen forward steps while the model's share of what each week allows holds steady &mdash; the level moved, the ordering did not, and only the lower panel reflects the model.</figcaption>
+  </figure>
 
-  <p><strong>The budget sweep says the advantage is concentrated at the top of each list.</strong> Lift falls monotonically as the review budget grows: <strong>0.3719</strong> at 10 reviews per client, <strong>0.3250</strong> at 25, <strong>0.2895</strong> at 50, <strong>0.2755</strong> at 100, <strong>0.2667</strong> at 250, and <strong>0.2492</strong> at 500 &mdash; against exactly <strong>0.0000</strong> when the budget covers the whole pool, which is the control behaving as a control should. A further finding sits underneath: <strong>13 of 30</strong> clients receive their entire eligible pool within a budget of 100, so for those clients no ranking is happening at all. They are being handed a filter.</p>
+  <p>The same walk shows why the headline metric matters. Measured as raw lift, the model appears to collapse: it falls from <strong>0.2559</strong> to <strong>0.1140</strong> over the thirteen steps. Normalised against what was available in each week, it rises from <strong>0.6575</strong> to <strong>0.9135</strong>. Raw lift correlates <strong>&minus;0.9135</strong> with the base rate, which means a dashboard plotting it would show freefall and trigger a retrain of a model that had not degraded at all. A defensible alert floor is a share of ceiling below <strong>35.0%</strong>, set from the observed weekly variation &mdash; and that floor is provisional, since it was derived in-sample from the same thirteen steps it was tested on. On this walk it would have fired once.</p>
+
+  <h3>Where the model is wrong</h3>
+
+  <p>A ranking that is right on average can still be useless in the specific place it is used, so the failures were measured rather than assumed.</p>
+
+  <p><strong>It is reliable exactly where it is confident, and near-random at the edge of what it will pick.</strong> Grouping the picks by the score that produced them, precision holds up across the confident bands and then falls away sharply in the marginal one:</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Precision of the queue's picks, by decile of predicted score, most confident first.</caption>
+    <thead>
+      <tr><th class="wrap">Band of predicted score</th><th class="n">precision of its picks</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="wrap">first (most confident)</td><td class="n">0.896</td></tr>
+      <tr><td class="wrap">second</td><td class="n">0.908</td></tr>
+      <tr><td class="wrap">third</td><td class="n">0.922</td></tr>
+      <tr><td class="wrap">fourth</td><td class="n">0.961</td></tr>
+      <tr class="hi"><td class="wrap">last (marginal)</td><td class="n">0.442</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>For a queue truncated at a fixed budget that is the right shape of failure &mdash; the weak picks sit at the bottom of a list nobody reaches. But it argues for surfacing the score's confidence beside each entry rather than presenting all hundred picks as equivalent.</p>
+
+  <p><strong>Performance varies more across clients than across anything else.</strong> Per-client precision at 100 on one held-out split spans <strong>0.458</strong> to <strong>0.970</strong>. The worst client is not a sample-size artefact &mdash; it took <strong>72</strong> picks, where the budget was 100, so the queue took every eligible page and the model never ordered anything. Two other low-scoring clients took <strong>6</strong> and <strong>5</strong> picks and are a sample-size artefact, which is a different failure with a different fix.</p>
+
+  <p><strong>The ordering runs monotonically across what actually happened</strong>, which no threshold metric could show. Mean predicted percentile, by outcome: large fall <strong>0.3330</strong>, small fall <strong>0.4221</strong>, stagnant <strong>0.5012</strong>, small rise <strong>0.5153</strong>, large rise <strong>0.6648</strong>. Pages that fell hard are <strong>9x</strong> likelier to sit in the predicted-worst decile than the predicted-best; pages that rose hard, <strong>12x</strong> the reverse.</p>
+
+  <p><strong>Stagnant pages need no special handling.</strong> They sit at <strong>0.5012</strong> &mdash; the middle of the ordering, where a page with no signal belongs &mdash; and reach an extreme outcome <strong>16.97%</strong> of the time against <strong>25.42%</strong> for large fallers. The inherited three-label design carried a separate "stagnant" class; this measurement is why it does not need one.</p>
+
+  <h3>How much of the gain is arithmetic, and does it survive being stale</h3>
+
+  <p><strong>About a fifth of the measured gain is arithmetic, and the rest survived the test that killed the earlier findings.</strong> The null that broke this project's first headline &mdash; replacing each page's real future window with a random thirty-day window from that page's own history, preserving its level and volatility while destroying any information about what comes next &mdash; leaves the full models only <strong>+0.04</strong> above the null's own base rate, against <strong>+0.21</strong> on the real future. This is the first result in the project to survive that test rather than be explained by it, and it is why the number is quoted with the caveat attached instead of suppressed.</p>
+
+  <p><strong>The advantage transfers to an unseen month essentially intact, and the first estimate of it was wrong.</strong> Trained at the first decision point and scored once at the second, the model returns <strong>+0.1291</strong> over random against <strong>+0.2436</strong> at home &mdash; which reads as retaining <strong>53%</strong>, and was reported as decay until the controlled version of the question was run. Holding the test month fixed and moving only the training date, a <strong>92</strong>-day-old model scores <strong>0.1238</strong> where a <strong>31</strong>-day-old one scores <strong>0.1242</strong>: a gap of <strong>0.0009</strong>. What falls between the two decision points is the headroom, not the skill &mdash; the later pool declines at 0.7873 against 0.5131, so the most any ranker could gain falls from 0.4869 to <strong>0.2131</strong>. Measured as capture of what was available, the three forward steps sit in a <strong>33.5%</strong> to <strong>58.3%</strong> band with a mean of <strong>47.4%</strong>, and the last month is the <em>highest</em> of the three at <strong>0.5829</strong>. Fresher is still directionally better &mdash; the within-month correlation between staleness and lift is <strong>&minus;0.7541</strong> &mdash; but the largest penalty measured anywhere is <strong>0.0194</strong>, against a <strong>0.2415</strong> to <strong>0.1242</strong> swing driven purely by which month is scored. That is the argument for retraining rarely and monitoring the right quantity.</p>
+
+  <h3>The budget sweep, and who is being handed a filter</h3>
+
+  <p><strong>The advantage is concentrated at the top of each list.</strong> Lift falls monotonically as the review budget grows: <strong>0.3719</strong> at 10 reviews per client, <strong>0.3250</strong> at 25, <strong>0.2895</strong> at 50, <strong>0.2755</strong> at 100, <strong>0.2667</strong> at 250, and <strong>0.2492</strong> at 500 &mdash; against exactly <strong>0.0000</strong> when the budget covers the whole pool, which is the control behaving as a control should. A further finding sits underneath: <strong>13 of 30</strong> clients receive their entire eligible pool within a budget of 100, so for those clients no ranking is happening at all. They are being handed a filter.</p>
 
   <p><strong>And a global queue misallocates its own slots.</strong> Split the pool in two by a one-line rule &mdash; whether a page is already below its own ninety-day average &mdash; and the two halves behave very differently. Pages already below their average decline <strong>76.41%</strong> of the time, and the model adds only <strong>+0.0787</strong> on top of that filter. Pages that have not started falling decline <strong>40.69%</strong> of the time, and there the model adds <strong>+0.2186</strong>. Normalised for headroom the skill is comparable in both &mdash; <strong>33.4%</strong> against <strong>36.9%</strong> of ceiling &mdash; which is precisely the problem: the global score sends <strong>82.3%</strong> of top-of-queue slots to the segment that needs it least, because the dominant feature orders on how far below its own average a page already is.</p>
 </section>
@@ -234,23 +359,19 @@ score: age</code></pre>
 
   <p><strong>Pooling across clients hid a real signal and then invented a fake one.</strong> Rerun per client, the correlations look far stronger than pooled: the median client showed roughly three and a half times the pooled rank correlation between the peak-ratio feature and the outcome. That looked like a discovery pooling had obscured. It was not. Both the feature and the target's baseline contained the same recent-window term, so a null carrying no information about the future produced seven to twenty times more per-client correlation than reality did. Shuffling the target inside each client collapsed the correlation to <strong>&minus;0.009</strong>, which rules out sampling noise &mdash; the observed values were the arithmetic, and grouping by client does not remove it because the shared term sits inside each page. What survives is that clients genuinely differ from one another. What does not survive is the reading of that as a predictive relationship.</p>
 
-  <figure>
-    <img src="figures/panel_vs_ceiling.png" alt="Two-panel chart. The upper panel shows the pool's decline rate rising steeply across the thirteen forward weekly steps. The lower panel shows the model's share of the available ceiling in each of those same weeks, holding roughly flat or rising. The two panels use separate vertical axes deliberately and are never overlaid.">
-    <figcaption><span class="fignum">Figure 2.</span> Two panels, never two axes: the decline rate of each step's test week more than doubles across the thirteen forward steps while the model's share of what each week allows holds steady &mdash; the level moved, the ordering did not, and only the lower panel reflects the model.</figcaption>
-  </figure>
-
-  <p><strong>A decline rate is not a statement about a client.</strong> Part of this project concluded that the pool the model is pointed at is not stationary, and attributed the movement to client behaviour. That attribution was wrong. A panel-level ratio, computed without reference to any individual page, explains <strong>95.7%</strong> of the decline rate's movement, with an R&sup2; of <strong>0.9573</strong>. The observation stands and the splits' blindness to it stands; the causal story does not.</p>
+  <p><strong>A decline rate is not a statement about a client.</strong> Part of this project concluded that the pool the model is pointed at is not stationary, and attributed the movement to client behaviour. That attribution was wrong. A panel-level ratio, computed without reference to any individual page, explains <strong>95.7%</strong> of the decline rate's movement, with an R&sup2; of <strong>0.9573</strong>. The observation stands and the splits' blindness to it stands; the causal story does not. What moves is the panel: impressions per page-day rise through the spring and fall through June, and since the target compares a page's future against a baseline thirty to ninety days earlier, an early decision point measures a rising future against a low baseline while a late one measures the reverse. The ranking is unaffected, because a panel-wide shift moves every page in a cohort together &mdash; which is why share of ceiling holds at <strong>45.8%</strong> while the base rate doubles.</p>
 
   <p><strong>Click-through-rate was correctly measured against the wrong benchmark.</strong> Weighted CTR for the top three positions measures <strong>0.30%</strong> and <strong>0.39%</strong> at the two decision points, which an earlier version of this work read as seven to nine times below the reference figure in the repo's own data dictionary. Checking against FlyRank's own published research resolved it: three of four position bands agree to two decimal places, and the reference figure came from a thin per-row slice that the research paper had explicitly replaced. <strong>The measurement was right; the benchmark was wrong.</strong> The finding that survives is compression &mdash; the first twenty positions span about <strong>0.10</strong> percentage points &mdash; which is why a rule keyed to CTR level has almost nothing to separate pages with. CTR stays out of the model on measured redundancy rather than doubt: adding it costs <strong>&minus;0.0136</strong> AUC, because average position already carries the ordering.</p>
+
+  <p><strong>Three further directions were pursued and rejected on their evidence.</strong> A log transform of the target matched the <code>asinh</code> difference where both are defined and failed where it is not, which is the whole reason for the transform. A per-client reading of the signal &mdash; the obvious response to clients genuinely differing &mdash; turned out to be the shared-denominator artefact described above, and fell with it. And a third-party flag intended to mark at-risk pages does not select them against this label, with a lift of <strong>1.01</strong> at the first decision point and <strong>0.91</strong> at the second. Read carefully, that last one condemns the pairing rather than the flag: the flag encodes slow editorial decay while this label captures fast statistical reversion, and a rule failing against a compromised label is weak evidence against the rule. The same caution applies to freshness: a relationship does exist but is bounded, with decline rising with staleness to about <strong>180</strong> days and then flattening &mdash; enough to justify a freshness rule, far too weak to rank on.</p>
 
   <div class="limit">
     <span class="label">What this work cannot claim</span>
     <p><strong>It cannot tell you how much.</strong> The model's R&sup2; on the continuous target is <strong>0.0026</strong>. It ranks pages; it does not forecast magnitude, and any queue entry should be read as a position in a list rather than a predicted traffic loss.</p>
     <p><strong>A decline rate says nothing about a client.</strong> With a panel-level ratio explaining <strong>95.7%</strong> of the movement in the decline rate, a high observed rate for one client is a statement about that client's mix of pages and window, not about its health.</p>
     <p><strong>Nothing here is causal, and one thing is actively unclaimed.</strong> No page was edited, no experiment was run, and no comparison here licenses the claim that reviewing a queued page changed what followed. The reason codes attached to queue entries are a further caution: a code says where to look, never why.</p>
+    <p><strong>The headline metric cannot see one whole axis of variation.</strong> Every one of the ten splits resamples clients at a single date, so all of them hold the base rate fixed by construction. Variation between clients is what those splits measure; variation over time is invisible to them, and a reader comparing two of this paper's figures across different decision points is comparing two different worlds.</p>
   </div>
-
-  <p><strong>Two smaller results, both negative.</strong> A freshness relationship does exist but is bounded: on the subset where an update date is exact, decline rises with staleness to about <strong>180</strong> days and then flattens. That is enough to justify a freshness rule and far too weak to rank on. And a third-party flag intended to mark at-risk pages does not select them against this label, with a lift of <strong>1.01</strong> at the first decision point and <strong>0.91</strong> at the second. Read carefully, that condemns the pairing rather than the flag: the flag encodes slow editorial decay while this label captures fast statistical reversion, and a rule failing against a compromised label is weak evidence against the rule.</p>
 </section>
 
 <section id="s7">
@@ -269,6 +390,8 @@ score: age</code></pre>
 
   <p><strong>Stop at decile 5, and tell the 13 clients who get a filter that they are getting a filter.</strong> Decile 6 is the first no better than the pool base rate, and by decile 10 pages decline at <strong>0.2081</strong> against a pool rate of <strong>0.5131</strong>. And <strong>13 of 30</strong> clients receive their entire eligible pool within a budget of 100, so for them nothing is being ranked.</p>
 
+  <p><strong>Show the score's confidence, not just its order.</strong> Precision holds between <strong>0.896</strong> and <strong>0.961</strong> across the confident bands of the queue and falls to <strong>0.442</strong> in the marginal one. An entry near the bottom of the list is a materially weaker claim than one at the top, and the interface should say so rather than rendering a hundred picks as interchangeable.</p>
+
   <p><strong>Apply a volume floor and route dead pages elsewhere.</strong> The bottom volume quartile captures only <strong>30.2%</strong> of its ceiling, and <strong>19.38%</strong> of the top 100 per client are pages that reach zero impressions &mdash; with a median ninety-day impression count of <strong>16</strong> against <strong>896</strong> for the live pages beside them. A page at zero needs a redirect or a merge. That is irreversible in a way a content edit is not, and it is not a decision this model has any standing to inform.</p>
 
   <p><strong>Choose the outcome window operationally, and monitor share of ceiling rather than precision.</strong> Capture is flat from a seven-day horizon to a ninety-day one, between <strong>53.7%</strong> and <strong>59.2%</strong> with a mean of <strong>56.5%</strong>, so the label need not match the rebuild cadence. Monitor share of ceiling, because raw lift tracks the base rate at <strong>&minus;0.9135</strong> and would show freefall for a model that had not changed. Staleness costs <strong>0.0009</strong> over 92 days, which is the argument for retraining rarely. Alert when share of ceiling drops below <strong>35.0%</strong>, treating that floor as provisional &mdash; it was derived in-sample from the same thirteen steps it was tested on.</p>
@@ -277,27 +400,60 @@ score: age</code></pre>
 </section>
 
 <section id="s8">
-  <h2><span class="num">8</span> Reproducibility</h2>
+  <h2><span class="num">8</span> Reproducibility, and how the work was verified</h2>
 
   <p>The notebooks, the tooling and this page are in the <a href="https://github.com/danielajetunmobi/flyrank">public repository</a>. The capstone notebook runs end to end from the gated warehouse release; the figures above are generated by it rather than drawn by hand.</p>
 
-  <p><strong>Environment.</strong> <code>pip install -r requirements.txt</code> &mdash; pandas, numpy, scikit-learn, matplotlib, reportlab, duckdb and huggingface_hub, plus python-dotenv for local environment loading.</p>
+  <h3>What each notebook established</h3>
 
-  <p><strong>Data access.</strong> A Hugging Face account with access to the gated <code>FlyRank/internship-warehouse</code> dataset; request access and accept the terms. Supply a read token either as <code>HF_TOKEN</code> in a local, gitignored <code>.env</code> or at the <code>getpass</code> prompt. Never in a cell.</p>
+  <div class="scroll">
+  <table>
+    <caption>Ten notebooks, in run order. Each is self-contained and re-downloads what it needs.</caption>
+    <thead>
+      <tr><th class="wrap">Notebook</th><th class="wrap">What it established</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="wrap">research question</td><td class="wrap">The lane, the decision it serves, and why a threshold rule on raw change cannot work.</td></tr>
+      <tr><td class="wrap">task framing</td><td class="wrap">The grain, the feature and label windows, and the target definition.</td></tr>
+      <tr><td class="wrap">data contract</td><td class="wrap">The warehouse's column-by-column contract, including the zero-based position convention that four earlier figures had wrong.</td></tr>
+      <tr><td class="wrap">feature leakage check</td><td class="wrap">The leakage harness, the restricted safe feature set, and the six-check experiment on position encoding.</td></tr>
+      <tr><td class="wrap">signal audit</td><td class="wrap">The signal tests and their verdicts &mdash; including the null that showed the project's first headline was arithmetic.</td></tr>
+      <tr><td class="wrap">baseline score</td><td class="wrap">The gate, the rule, and the measurement that the rule ranks below random.</td></tr>
+      <tr><td class="wrap">model</td><td class="wrap">The four-algorithm comparison, the permutation audit, and the chosen model.</td></tr>
+      <tr><td class="wrap">validation audit</td><td class="wrap">The ablation that removed a feature, the walk-forward, and the controlled staleness test.</td></tr>
+      <tr><td class="wrap">action playbook</td><td class="wrap">The reason codes, the two-segment split, the budget sweep, and the alert floor.</td></tr>
+      <tr><td class="wrap">capstone</td><td class="wrap">The synthesis, and every figure on this page.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Later notebooks rebuild the earlier cohort and gate from scratch and print a must-match line against the figure the earlier notebook reported, so a silent divergence fails loudly rather than quietly changing a number.</p>
+
+  <h3>Environment and data access</h3>
+
+  <p><code>pip install -r requirements.txt</code> &mdash; pandas, numpy, scikit-learn, matplotlib, reportlab, duckdb and huggingface_hub, plus python-dotenv for local environment loading. Data access needs a Hugging Face account with access to the gated <code>FlyRank/internship-warehouse</code> dataset; request access and accept the terms, then supply a read token either as <code>HF_TOKEN</code> in a local, gitignored <code>.env</code> or at the <code>getpass</code> prompt. Never in a cell.</p>
 
   <p><strong>Seeds.</strong> The model's own random state and the split generator are both fixed at <strong>8</strong>. The ten client-grouped splits are built two different ways &mdash; one notebook loops the splitter across ten seeds, the capstone draws ten splits from a single seed &mdash; which produces two equally valid but different sets of ten, and is why no per-split figure from the walk-forward is compared against a per-split figure from model selection. Random baselines use a purpose-specific generator seed.</p>
 
-  <p><strong>Run order.</strong> Research question &rarr; task framing &rarr; data contract &rarr; leakage check &rarr; signal audit &rarr; baseline score &rarr; model &rarr; validation audit &rarr; action playbook &rarr; capstone. Each notebook is self-contained and re-downloads what it needs; later notebooks rebuild the earlier cohort and gate from scratch and print a must-match line against the figure the earlier notebook reported, so a silent divergence fails loudly.</p>
+  <h3>Two guarantees this page is held to</h3>
 
-  <p><strong>Two guarantees this page is held to.</strong> Every number written in prose must appear in the output of a cell that ran, enforced by a checker that fails the build otherwise, and a consistency checker pins the eleven quantities that more than one notebook reports so they cannot drift apart. Both run in CI on every push, alongside the check that this page is reachable and carries its data credit.</p>
+  <p>Prose is where numbers go to die. A figure gets corrected in a notebook and the sentence quoting it does not, and nothing notices. This project's answer is to make the build fail.</p>
 
-  <p><strong>Known gaps, listed honestly.</strong> The computed feature vector is not cached, so the aggregation and joins are recomputed on each run &mdash; the underlying files are cached, so this costs seconds rather than a re-download. The remote host is intermittently unreliable and a run may need retries. And most headline figures rest on one decision point, with the weekly walk covering the four months the warehouse allows; how this behaves on a longer horizon is untested.</p>
+  <p><strong>Every number written in prose must appear in the output of a cell that ran.</strong> A checker pools the stdout of every executed code cell across every notebook, scans every markdown cell and every prose file in the repository &mdash; this page included &mdash; and fails if any number in the prose does not appear in that pool. Analysis done in a scratch script is fine; a number that reaches the prose without being recomputed in a notebook is not. Every violation it has ever found was a real defect: stale figures, transposed digits, and one claim about a column that does not exist.</p>
+
+  <p><strong>Quantities that more than one notebook reports are pinned so they cannot drift apart.</strong> A consistency checker re-derives each shared figure and compares it against every place it is stated; a mismatch fails the build.</p>
+
+  <p>Both run in CI on every push, alongside a check that no dataset is committed, a check that every notebook carrying code also carries its outputs, and a check that this page is reachable and carries its data credit. The effect on practice is the point: "done" stopped meaning a sentence that promises and started meaning a build that fails.</p>
+
+  <h3>Known gaps, listed honestly</h3>
+
+  <p>The computed feature vector is not cached, so the aggregation and joins are recomputed on each run &mdash; the underlying files are cached, so this costs seconds rather than a re-download. The remote host is intermittently unreliable and a run may need retries. Most headline figures rest on one decision point, with the weekly walk covering the four months the warehouse allows; how this behaves on a longer horizon is untested. And the alert floor in the recommendations was derived in-sample, from the same thirteen steps it was tested against.</p>
 </section>
 
 <section id="s9">
   <h2><span class="num">9</span> Acknowledgments and data credit</h2>
 
-  <p>Built on the <strong>FlyRank ML Internship dataset</strong> &mdash; <a href="https://flyrank.ai">flyrank.ai</a>. The lane, the framing questions and the operating parameters came from the internship brief; the weekly cadence, the configurable per-client queue size and the macro reporting convention were confirmed directly by FlyRank mid-project and are recorded in the repository's revision log alongside the guesses they replaced.</p>
+  <p>Built on the <strong>FlyRank ML Internship dataset</strong> &mdash; <a href="https://flyrank.ai">flyrank.ai</a>. The lane, the framing questions and the operating parameters came from the internship brief; the weekly cadence, the configurable per-client queue size and the macro reporting convention were confirmed directly by FlyRank mid-project and are recorded in the revision log alongside the guesses they replaced.</p>
 
   <p>Thanks also to the public FlyRank research published in March 2026, whose weighted CTR-by-position figures settled a measurement question this project had been getting wrong for weeks &mdash; and settled it in favour of the measurement.</p>
 
@@ -386,6 +542,123 @@ score: age</code></pre>
   </div>
 
   <p><strong>Two patterns run through that table, and both are process failures rather than analysis failures.</strong> Several of the withdrawn findings were produced by analysis run in a scratch script and then <em>described</em> in prose in a notebook, rather than recomputed in the notebook that quoted it &mdash; exploring outside the notebook is fine, but anything that survives into it has to be computed there. And several of the stale claims were written as forward-looking statements ("deferred until&hellip;", "not yet reached") that no step in the process ever revisited. A promise dated to a milestone needs re-reading when the milestone lands. Nothing here did that automatically, which is why the checkers described in the previous section now define "done" as a build that fails rather than a sentence that promises.</p>
+</section>
+
+<section id="sb">
+  <h2><span class="num">B</span> Appendix: the revision log</h2>
+
+  <p>Sections 0 to 8 state the current position. This is how it got there, kept so the reasoning can be audited rather than taken on trust. Nothing above was deleted to make room for it: superseded figures are still present in the notebooks, still labelled with the design they measured.</p>
+
+  <h3>Design changes</h3>
+
+  <div class="scroll">
+  <table>
+    <caption>Decisions that changed the shape of the work, and why each one moved.</caption>
+    <thead>
+      <tr><th class="wrap">Change</th><th class="wrap">Why</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="wrap">Three binary labels &rarr; one continuous target</td>
+        <td class="wrap">The twenty-percent cut was inherited, not derived. Binarising made a 21% dip and a 95% collapse the same label while a 19% dip and a 21% one became opposite classes; the cohort was split three ways; and one label was false <em>by construction</em> for already-declining pages.</td>
+      </tr>
+      <tr>
+        <td class="wrap">AUC &rarr; rank agreement as the primary metric, with the label no longer carrying a base rate</td>
+        <td class="wrap">A base rate is the share of a positive class, and a continuous target has none. Both return at evaluation, where the threshold is applied: AUC is reported beside rank agreement everywhere, and the scored pool's base rate is mandatory beside every score.</td>
+      </tr>
+      <tr>
+        <td class="wrap">Log ratio &rarr; <code>asinh</code> difference</td>
+        <td class="wrap">The logarithm of zero is undefined, and <strong>7.4%</strong> of the first cohort reaches zero. The two agree at rank correlation <strong>+0.9546</strong> where both are defined, and <code>asinh</code> stays finite where the ratio does not.</td>
+      </tr>
+      <tr>
+        <td class="wrap">Dead pages get their own ranked flag</td>
+        <td class="wrap"><strong>87%</strong> of pages reaching zero were already under one impression a day; the other <strong>1,334</strong> need surfacing without competing for queue position against live pages.</td>
+      </tr>
+      <tr>
+        <td class="wrap">A global queue of 50, monthly &rarr; per-client at a fixed 100, monthly &rarr; per-client at a configurable budget, weekly</td>
+        <td class="wrap">The fixed 50 was below the smallest audit tier and "weekly" came from a lecturer's turn of phrase rather than the client deliverable. The middle row got the scope right and the cadence wrong. FlyRank answered directly: the cadence was weekly after all, and the budget is configurable because the workflow processes thousands of pages a day.</td>
+      </tr>
+      <tr>
+        <td class="wrap">Pooled metrics &rarr; macro client metrics as the headline, pooled retained</td>
+        <td class="wrap">FlyRank asks for macro. The withdrawal that motivated this change stands on its own terms, but the inference that pooling was therefore the right convention does not.</td>
+      </tr>
+      <tr>
+        <td class="wrap">A thirty-day outcome window tied to the queue cadence &rarr; swept independently</td>
+        <td class="wrap">Tying the label to the rebuild interval was a convenience. FlyRank rejected it: several budgets and several outcome windows, tested separately.</td>
+      </tr>
+      <tr>
+        <td class="wrap">"The pool this model would be pointed at is not stationary" &rarr; "the panel is not stationary"</td>
+        <td class="wrap">A panel-level ratio, blind to every individual page, explains <strong>95.7%</strong> of the decline rate's movement. The observation and the splits' blindness to it both stand; the attribution to client behaviour does not.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Data corrections</h3>
+
+  <div class="scroll">
+  <table>
+    <caption>Errors found in the data contract, and what each one cost.</caption>
+    <thead>
+      <tr><th class="wrap">Correction</th><th class="wrap">Effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="wrap">Search Console position is zero-based</td><td class="wrap">The previous rule discarded each page's best days for <strong>53.4%</strong> of the cohort.</td></tr>
+      <tr><td class="wrap">Average position weighted by impressions, not a mean of daily means</td><td class="wrap">A page's busy days now count for more than its quiet ones.</td></tr>
+      <tr><td class="wrap">The dimension table is an export-time snapshot, not point-in-time</td><td class="wrap">A freshness feature leaked the future for the large majority of pages and was removed.</td></tr>
+      <tr><td class="wrap">The deleted-and-unpublished filter was itself outcome-window selection</td><td class="wrap">Reverted &mdash; it judged a March decision by a July status.</td></tr>
+      <tr><td class="wrap">The thirty-day future window divided by thirty, not thirty-one or ninety</td><td class="wrap">An off-by-one moved the label <strong>49.62%</strong> to <strong>50.95%</strong>; the ninety-day error moved recovery <strong>18.3%</strong> to <strong>28.2%</strong>.</td></tr>
+      <tr><td class="wrap">An explicit sort added to the source query</td><td class="wrap">Without it, fixed-seed splits differed between runs.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>What FlyRank confirmed, and what it overturned</h3>
+
+  <p>Most of this project's operating parameters were inferred from public pricing copy because no authoritative answer was available. One arrived, and it is recorded in full because several sections were written against the guesses &mdash; and because two of the guesses were right for the wrong reason while one reversal turned out to have been a mistake.</p>
+
+  <div class="scroll">
+  <table>
+    <caption>FlyRank's answers, and what each one changed.</caption>
+    <thead>
+      <tr><th class="wrap">FlyRank's statement</th><th class="wrap">Effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="wrap">Queues are generated separately for each client</td><td class="wrap"><strong>Confirms</strong> the per-client scope, which had rested on inference from account-based pricing.</td></tr>
+      <tr><td class="wrap">Queues are customised rather than limited to a global top 50</td><td class="wrap"><strong>Confirms</strong> dropping the fixed global queue.</td></tr>
+      <tr><td class="wrap">They are rebuilt <strong>weekly</strong></td><td class="wrap"><strong>Overturns</strong> the monthly cadence &mdash; and re-reverses a change this log had recorded as a correction.</td></tr>
+      <tr><td class="wrap">The automated workflow can process thousands of pages per day</td><td class="wrap"><strong>Overturns</strong> "capacity binds, not ranking quality", the ceiling argument built on it, and a fixed budget of 100 as defensible.</td></tr>
+      <tr><td class="wrap">Treat the queue size as a configurable per-client budget</td><td class="wrap">The budget becomes a parameter to sweep rather than a constant.</td></tr>
+      <tr><td class="wrap">Report macro client metrics</td><td class="wrap"><strong>Reverses</strong> this project's pooled-first convention.</td></tr>
+      <tr><td class="wrap">Test several budgets and outcome windows rather than tying a thirty-day label to the queue cadence</td><td class="wrap"><strong>Overturns</strong> the label-window justification and defines new work.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><strong>What this does not touch.</strong> Every model comparison was run at one budget against one label, so the ordering of models is unaffected &mdash; ridge still leads, the restricted feature set still fails to transfer, the rule still ranks below random. The leakage findings, the shared-denominator artefact, the null simulations and the walk-forward staleness result are all independent of budget and cadence. What moves is everything phrased as coverage or ceiling, and the reporting convention.</p>
+
+  <h3>Status claims that were corrected</h3>
+
+  <p>A final sweep over the notebooks for promises made and not kept. Most held: the signal audit delivered every check it named, recall at 100 is reported throughout, and the validation audit closed all three items the capstone said it owed. These did not:</p>
+
+  <div class="scroll">
+  <table>
+    <caption>Stale statements found by sweeping the notebooks for forward-looking claims, and what was actually true.</caption>
+    <thead>
+      <tr><th class="wrap">Stale claim</th><th class="wrap">What was actually true</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="wrap">A status header saying the later milestones had not been reached</td><td class="wrap">They were all complete; only the recommendations section was outstanding.</td></tr>
+      <tr><td class="wrap">"No walk-forward across multiple decision dates"</td><td class="wrap">A second date had been scored, and the validation audit walks four.</td></tr>
+      <tr><td class="wrap">"Only one of three targets is built; two have never been modelled"</td><td class="wrap">Both stopped existing when three binary targets became one continuous one &mdash; contradicting the document's own data section.</td></tr>
+      <tr><td class="wrap">"The outputs directory is empty"</td><td class="wrap">It holds a baseline action score file. The substance stood &mdash; no feature cache &mdash; but the stated reason for deferring it had expired.</td></tr>
+      <tr><td class="wrap">Categorical encoding "deferred to the modelling stage"</td><td class="wrap">Settled: two of the three are unusable and the third moves precision at 100 by <strong>&minus;0.0001</strong>.</td></tr>
+      <tr><td class="wrap">A revision-log row claiming both AUC and the base rate had been dropped</td><td class="wrap">Neither was dropped, and the row contradicted its own last clause. Moving the threshold from training to evaluation is precisely what <em>keeps</em> both. The row had been copied verbatim into three notebooks as well as the report.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The stale claims share one cause, and it is not analytical: they were all written as forward-looking statements that no later step ever revisited. A promise dated to a milestone needs re-reading when the milestone lands, and nothing in this process did that automatically. That is the argument for the checkers in the previous section, and for treating a build that fails as the only definition of done that survives a deadline.</p>
 </section>
 
 <footer>
