@@ -1,26 +1,41 @@
 /* The deployed paper's stylesheet.
-   All presentation lives here so the HTML carries no numeric attributes and its
-   text is the only thing a claim checker tokenises. Colours are the same slots
-   the figures use, so the page and the charts read as one document.
 
-   Design intent: a data-team write-up, not a rendered README. Hierarchy comes
-   from three devices and nothing else -- a key-number strip under the title, a
-   sticky section nav, and a heavy rule above every section heading. */
+   Presentation lives here so the HTML carries no numeric attributes and its text
+   is the only thing a claim checker tokenises.
+
+   The visual language is the FlyRank W4 deck's: a deep-teal ground, a mint accent
+   used for structure rather than decoration, Segoe UI, and content carried in
+   cards with a coloured left rule. Two adaptations are deliberate. The deck's
+   charts sit on cards, so the figures here keep a light plate inside a card --
+   matplotlib renders on white, and a white slab on a dark ground reads as a
+   mistake unless it is framed. And a paper is read, not projected, so the type
+   scale is smaller and the measure narrower than a slide's.
+
+   Hierarchy comes from three devices: an accent square in the eyebrow, a section
+   number chip, and a hairline rule above every heading. Vertical rhythm is
+   tight; on wide screens figures and tables run past the text measure. */
 
 :root {
-  --surface: #fcfcfb;
-  --card: #ffffff;
-  --ink: #0b0b0b;
-  --ink-2: #4a4945;
-  --muted: #8a8880;
-  --rule: #e4e3dc;
-  --rule-strong: #c9c8bd;
-  --blue: #1f6fd0;
-  --blue-deep: #1857a5;
-  --blue-wash: #eff5fc;
-  --orange: #e2622f;
-  --wash: #f5f4f0;
-  --measure: 50rem;
+  /* deck palette */
+  --bg: #0a2426;
+  --card: #102e2f;
+  --card2: #16393a;
+  --ink: #071a1c;
+  --acc: #6cdd9b;
+  --txt: #f1f1f1;
+  --mut: #9fb8b2;
+  --warn: #f9c74f;
+  --blue: #8ab4f8;
+
+  /* supporting tones taken from the deck's widget styles */
+  --line: #1e4746;
+  --sel: #12402f;
+
+  --measure: 52rem;
+  --bleed: 2.75rem;
+
+  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
 *,
@@ -36,10 +51,10 @@ html {
 
 body {
   margin: 0;
-  padding: 0 1.5rem 5rem;
-  background: var(--surface);
-  color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 0 1.5rem 4rem;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
   font-size: 1.0625rem;
   line-height: 1.65;
   font-kerning: normal;
@@ -52,51 +67,74 @@ body {
 }
 
 ::selection {
-  background: var(--blue-wash);
+  background: var(--sel);
+  color: var(--txt);
+}
+
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
 }
 
 /* --- masthead ----------------------------------------------------------- */
 
 .masthead {
-  padding: 4.5rem 0 2.25rem;
+  padding: 3rem 0 1.75rem;
 }
 
+/* the deck's .kick -- accent label with a solid square before it */
 .eyebrow {
-  margin: 0 0 1.25rem;
-  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 1rem;
+  color: var(--acc);
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--blue);
+}
+
+.eyebrow::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  background: var(--acc);
 }
 
 h1 {
-  margin: 0 0 1.125rem;
-  font-size: clamp(2rem, 5.5vw, 2.875rem);
-  line-height: 1.12;
-  letter-spacing: -0.025em;
-  font-weight: 760;
+  margin: 0 0 1rem;
+  color: #ffffff;
+  font-size: clamp(1.875rem, 5.2vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
 .standfirst {
-  margin: 0 0 1.5rem;
-  font-size: clamp(1.125rem, 2.4vw, 1.3125rem);
-  line-height: 1.5;
-  color: var(--ink-2);
+  margin: 0 0 1.25rem;
+  color: var(--mut);
+  font-size: clamp(1.0625rem, 2.3vw, 1.25rem);
+  line-height: 1.55;
   text-wrap: balance;
 }
 
 .byline {
   margin: 0;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--rule);
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--mut);
   font-size: 0.9375rem;
-  color: var(--muted);
 }
 
 .byline a {
-  color: var(--ink-2);
+  color: var(--mut);
+}
+
+.byline a:hover {
+  color: var(--acc);
 }
 
 /* --- key-number strip --------------------------------------------------- */
@@ -104,35 +142,33 @@ h1 {
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0 0 1.5rem;
-  background: var(--rule);
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  overflow: hidden;
+  gap: 14px;
+  margin: 0 0 1.25rem;
 }
 
 .stat {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  padding: 1.25rem 1.125rem;
+  padding: 16px;
   background: var(--card);
+  border-top: 3px solid var(--acc);
+  border-radius: 12px;
 }
 
 .stat-value {
+  color: var(--acc);
   font-size: 1.75rem;
-  font-weight: 760;
+  font-weight: 800;
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 
 .stat-label {
+  color: var(--mut);
   font-size: 0.8125rem;
-  line-height: 1.35;
-  color: var(--muted);
+  line-height: 1.4;
 }
 
 /* --- sticky section nav ------------------------------------------------- */
@@ -143,11 +179,11 @@ h1 {
   z-index: 20;
   display: flex;
   gap: 1.375rem;
-  margin: 0 0 0.5rem;
-  padding: 0.875rem 0;
-  background: var(--surface);
-  border-top: 2px solid var(--ink);
-  border-bottom: 1px solid var(--rule);
+  margin: 0 0 0.25rem;
+  padding: 0.8125rem 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none;
@@ -159,34 +195,38 @@ h1 {
 
 .toc a {
   flex: 0 0 auto;
-  font-size: 0.875rem;
-  font-weight: 550;
-  color: var(--ink-2);
+  color: var(--mut);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   text-decoration: none;
 }
 
 .toc a:hover,
 .toc a:focus-visible {
-  color: var(--blue);
+  color: var(--acc);
 }
 
 /* --- sections ----------------------------------------------------------- */
 
 section {
-  padding-top: 3.5rem;
-  scroll-margin-top: 4.5rem;
+  padding-top: 2.5rem;
+  scroll-margin-top: 4.25rem;
 }
 
 h2 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 0 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 2px solid var(--ink);
-  font-size: clamp(1.3125rem, 3vw, 1.5rem);
-  line-height: 1.25;
-  letter-spacing: -0.015em;
+  margin: 0 0 1.25rem;
+  padding-top: 1.125rem;
+  border-top: 1px solid var(--line);
+  color: #ffffff;
+  font-size: clamp(1.25rem, 2.9vw, 1.4375rem);
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: -0.005em;
 }
 
 h2 .num {
@@ -197,58 +237,64 @@ h2 .num {
   min-width: 1.875rem;
   height: 1.875rem;
   padding: 0 0.375rem;
-  background: var(--blue);
-  color: #ffffff;
-  border-radius: 6px;
+  background: var(--acc);
+  color: var(--ink);
+  border-radius: 7px;
   font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 h3 {
-  margin: 2.5rem 0 0.75rem;
-  font-size: 1.0625rem;
-  line-height: 1.4;
+  margin: 1.875rem 0 0.625rem;
+  color: var(--acc);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 p {
-  margin: 0 0 1.125rem;
+  margin: 0 0 0.9375rem;
 }
 
 a {
-  color: var(--blue-deep);
+  color: var(--blue);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
 a:hover {
-  color: var(--blue);
+  color: var(--acc);
 }
 
 strong {
-  font-weight: 680;
+  color: #ffffff;
+  font-weight: 700;
 }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.875em;
-  background: var(--wash);
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
+  background: var(--ink);
+  color: var(--acc);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
 }
 
+/* the deck's .ink block: a mono panel on the darkest ground */
 pre {
-  margin: 1.75rem 0;
-  padding: 1.25rem 1.375rem;
-  background: var(--wash);
-  border-left: 3px solid var(--rule-strong);
-  border-radius: 0 8px 8px 0;
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  background: var(--ink);
+  border-left: 3px solid var(--acc);
+  border-radius: 10px;
   overflow-x: auto;
 }
 
 pre code {
   background: none;
+  color: var(--txt);
   padding: 0;
   font-size: 0.875rem;
   line-height: 1.7;
@@ -256,37 +302,47 @@ pre code {
 
 ul,
 ol {
-  margin: 0 0 1.125rem;
+  margin: 0 0 0.9375rem;
   padding-left: 1.25rem;
 }
 
 li {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4375rem;
 }
 
-/* --- abstract ----------------------------------------------------------- */
+li::marker {
+  color: var(--acc);
+}
 
-.abstract p:first-of-type {
-  font-size: 1.1875rem;
+/* --- abstract -----------------------------------------------------------
+   The deck's .infobox: the mid ground, carried by a thick accent rule. The
+   callout under "what this cannot claim" reuses the shape in --warn, so the
+   two read as the same kind of object with different force. */
+
+.abstract-body {
+  padding: 1.25rem 1.5rem;
+  background: var(--card2);
+  border-left: 4px solid var(--acc);
+  border-radius: 10px;
+}
+
+.abstract-body p:first-child {
+  font-size: 1.125rem;
   line-height: 1.6;
 }
 
-.abstract p {
-  color: var(--ink-2);
-}
-
-.abstract strong {
-  color: var(--ink);
+.abstract-body p:last-child {
+  margin-bottom: 0;
 }
 
 /* --- the "cannot claim" callout ----------------------------------------- */
 
 .limit {
-  margin: 2rem 0;
-  padding: 1.5rem 1.75rem;
-  background: var(--wash);
-  border-left: 4px solid var(--orange);
-  border-radius: 0 10px 10px 0;
+  margin: 1.75rem 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--card2);
+  border-left: 4px solid var(--warn);
+  border-radius: 10px;
 }
 
 .limit p:last-child {
@@ -295,51 +351,54 @@ li {
 
 .limit .label {
   display: block;
-  margin-bottom: 0.875rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+  color: var(--warn);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--orange);
 }
 
 /* --- figures ------------------------------------------------------------ */
 
 figure {
-  margin: 2.5rem 0;
+  margin: 1.875rem 0;
+  padding: 16px;
+  background: var(--card);
+  border-radius: 12px;
 }
 
 figure img {
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  background: var(--card);
+  background: #ffffff;
+  border-radius: 8px;
 }
 
 figcaption {
   margin-top: 0.875rem;
   padding-left: 1rem;
-  border-left: 3px solid var(--blue);
+  border-left: 3px solid var(--acc);
+  color: var(--mut);
   font-size: 0.9375rem;
   line-height: 1.55;
-  color: var(--ink-2);
 }
 
 figcaption .fignum {
+  color: var(--acc);
   font-weight: 700;
-  color: var(--ink);
 }
 
 /* --- tables ------------------------------------------------------------- */
 
 .scroll {
-  margin: 2rem 0;
+  margin: 1.75rem 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
 table {
@@ -349,48 +408,47 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+/* the deck's table.tt: accent header on the mid ground, body on the card */
+thead th {
+  padding: 0.75rem 1.25rem;
+  background: var(--card2);
+  color: var(--acc);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+
 caption {
-  padding: 1rem 1.25rem 0;
+  padding: 0.875rem 1.25rem 0;
+  color: var(--mut);
   font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--muted);
   text-align: left;
 }
 
 th,
 td {
-  padding: 0.625rem 1.25rem;
+  padding: 0.5625rem 1.25rem;
   text-align: left;
-  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
 
-thead th {
-  padding-top: 0.875rem;
-  padding-bottom: 0.625rem;
-  background: var(--wash);
-  border-bottom: 1px solid var(--rule-strong);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink-2);
+tbody td {
+  border-top: 1px solid var(--line);
 }
 
-tbody tr:nth-child(even) {
-  background: #faf9f6;
-}
-
-tbody tr.hi {
-  background: var(--blue-wash);
+tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.018);
 }
 
 tbody tr.hi td {
-  font-weight: 680;
-}
-
-tbody tr:last-child td {
-  border-bottom: none;
+  background: var(--sel);
+  color: #ffffff;
+  font-weight: 700;
 }
 
 th.n,
@@ -407,36 +465,53 @@ th.wrap {
 /* --- footer ------------------------------------------------------------- */
 
 footer {
-  margin-top: 5rem;
-  padding: 2rem;
-  background: var(--wash);
-  border-radius: 10px;
+  margin-top: 3.5rem;
+  padding: 1.5rem 1.75rem;
+  background: var(--card2);
+  border-radius: 12px;
+  color: var(--mut);
   font-size: 0.9375rem;
-  color: var(--ink-2);
+}
+
+footer strong {
+  color: var(--txt);
 }
 
 footer p:last-child {
   margin-bottom: 0;
 }
 
+/* --- wide screens -------------------------------------------------------
+   The charts and tables are the evidence, so past the text measure they run
+   wider than the prose. Below the breakpoint the bleed would collide with the
+   body padding, so it only applies when there is room for it. */
+
+@media (min-width: 64rem) {
+  figure,
+  .scroll {
+    margin-inline: calc(var(--bleed) * -1);
+  }
+}
+
 /* --- phones ------------------------------------------------------------- */
 
 @media (max-width: 40rem) {
   body {
-    padding: 0 1.125rem 3.5rem;
+    padding: 0 1.125rem 3rem;
     font-size: 1rem;
   }
 
   .masthead {
-    padding-top: 3rem;
+    padding-top: 2.25rem;
   }
 
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .stat {
-    padding: 1rem 0.875rem;
+    padding: 13px 14px;
   }
 
   .stat-value {
@@ -448,12 +523,16 @@ footer p:last-child {
   }
 
   section {
-    padding-top: 2.75rem;
+    padding-top: 2rem;
   }
 
   h2 {
     align-items: flex-start;
-    padding-top: 1.25rem;
+    padding-top: 1rem;
+  }
+
+  figure {
+    padding: 10px;
   }
 
   caption,
@@ -464,20 +543,39 @@ footer p:last-child {
   }
 
   .limit {
-    padding: 1.25rem 1.125rem;
+    padding: 1.125rem 1.125rem;
   }
 }
 
-/* --- print -------------------------------------------------------------- */
+/* --- print --------------------------------------------------------------
+   A dark ground is right for a screen and wrong for paper, so print flips the
+   whole token set rather than hiding chrome and hoping. */
 
 @media print {
   :root {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --card2: #f4f4f2;
+    --ink: #f4f4f2;
+    --txt: #111111;
+    --mut: #555555;
+    --acc: #1c7a52;
+    --line: #d8d8d2;
+    --sel: #e6f5ec;
+    --blue: #14508f;
     --measure: 100%;
   }
 
   body {
     padding: 0;
     font-size: 11pt;
+  }
+
+  h1,
+  h2,
+  strong,
+  tbody tr.hi td {
+    color: #111111;
   }
 
   .masthead {
@@ -492,13 +590,29 @@ footer p:last-child {
     padding-top: 1.5rem;
   }
 
-  a {
-    color: var(--ink);
+  figure {
+    padding: 0;
+    break-inside: avoid;
   }
 
-  figure,
+  figure img {
+    border: 1px solid var(--line);
+  }
+
+  /* the widest tables only fit a page at a smaller size, and clipped columns
+     are worse than small type */
   table {
     break-inside: avoid;
+    font-size: 8.5pt;
+  }
+
+  thead th,
+  caption {
+    font-size: 8.5pt;
+  }
+
+  .scroll {
+    overflow: visible;
   }
 
   h2,
