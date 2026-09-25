@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Every number written in prose must come from a cell that actually ran.
 
-Reads the markdown cells of each notebook and the body of the capstone report,
-pulls out every numeric token, and checks each one against the pooled stdout of
-every executed code cell. A number that appears nowhere in any output is either
-carried in from a scratch script, stale from an earlier revision, or mistyped --
-all three have happened in this project, and none survive a re-read.
+Reads the markdown cells of each notebook, the body of the capstone report, and
+the deployed paper's HTML, pulls out every numeric token, and checks each one
+against the pooled stdout of every executed code cell. A number that appears
+nowhere in any output is either carried in from a scratch script, stale from an
+earlier revision, or mistyped -- all three have happened in this project, and
+none survive a re-read.
 
     python work/tools/check_claims.py            # report and exit 1 on failure
     python work/tools/check_claims.py --list     # show what each number matched
@@ -50,8 +51,17 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 NOTEBOOKS = sorted(glob.glob(str(ROOT / "work" / "notebooks" / "*.ipynb")))
-PROSE_FILES = [ROOT / "work" / "capstone_report.md"]
+PROSE_FILES = [ROOT / "work" / "capstone_report.md", ROOT / "docs" / "index.html"]
 DOC_GLOBS = ["docs/**/*.md", "README.md", "GUIDE.md"]
+
+# HTML markup is not prose. The paper's stylesheet is external and its tags carry
+# no numeric attributes, but code samples, entity escapes and link/href markup are
+# structural -- the same noise markdown fences and inline code are stripped of
+# above. Removing the tags keeps the token stream to what a reader actually reads.
+HTML_NOISE = [
+    re.compile(r"<[^>]+>"),               # tags, including any attributes
+    re.compile(r"&[a-zA-Z]+;"),           # entities -- &minus; &sup2; &mdash;
+]
 
 # Numbers that are deliberately not backed by a cell, each with a reason.
 # Retracted figures belong here: a correction has to name what it corrects,
@@ -103,9 +113,12 @@ STRIP_PATTERNS = [
 ]
 
 
-def strip_noise(text: str) -> str:
+def strip_noise(text: str, html: bool = False) -> str:
     for pat in STRIP_PATTERNS:
         text = pat.sub(" ", text)
+    if html:
+        for pat in HTML_NOISE:
+            text = pat.sub(" ", text)
     return text
 
 
@@ -220,7 +233,8 @@ def scan() -> list[tuple[str, str, str]]:
             units.append((f"{name} cell {i}", src))
     for path in PROSE_FILES:
         if path.exists():
-            units.append((path.name, path.read_text(encoding="utf-8")))
+            units.append((path.name, strip_noise(path.read_text(encoding="utf-8"),
+                                                 html=path.suffix == ".html")))
 
     seen: set[tuple[str, str]] = set()
     for where, text in units:
