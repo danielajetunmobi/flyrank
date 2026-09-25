@@ -35,6 +35,12 @@ __pycache__/
 venv/
 .env
 
+# Scratch execution copies. Running a notebook in a throwaway environment to see
+# whether it imports leaves a second file beside the deliverable, usually holding
+# tracebacks rather than results. The deliverable is the notebook itself, under
+# work/notebooks/, so these never ship.
+work/notebooks/*.execution.ipynb
+
 # Generated hand-off PDFs. Rebuilt from the notebooks by
 # work/tools/build_docs.py, so the generator is the source of truth and the
 # artefacts do not belong in the repo.

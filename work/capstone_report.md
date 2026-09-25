@@ -727,11 +727,21 @@ reportlab, duckdb, huggingface_hub) plus `python-dotenv` for local `.env` loadin
 `FlyRank/internship-warehouse` dataset (request access, accept terms — instant). Supply a READ
 token either as `HF_TOKEN` in a local `.env` (gitignored) or at the `getpass` prompt. Never in a cell.
 
-**Seeds.** `random_state=42` throughout — `GroupShuffleSplit`, `train_test_split`, and
-`LogisticRegression`.
+**Seeds.** `SEED = 8` in ML-08, ML-09 and ML-10 — the model's own `random_state`, and ML-10's split
+generator. The ten client-grouped splits are built two different ways: ML-07, ML-08 and ML-09 loop
+`GroupShuffleSplit(..., random_state=seed)` for `seed in range(10)`, while ML-10 draws
+`GroupShuffleSplit(n_splits=10, test_size=0.2, random_state=SEED)` — a different, equally valid ten
+splits, and the reason no ML-10 figure is compared per-split against ML-08's. Random baselines use
+`np.random.default_rng(...)` with purpose-specific seeds, including `1000 * seed + d` for the
+repeated random bars. `random_state=42` appears only in ML-05 (`w03_feature_leakage_check`), whose
+design was superseded on 08-05 — it is the split the withdrawn 1.72x lift was measured on
+(section 9).
 
 **Run order.** `w01_research_question` → `w02_ml_task_framing` → `w03_data_contract` →
-`w03_feature_leakage_check`. Each is self-contained and re-downloads what it needs.
+`w03_feature_leakage_check` → `w04_signal_audit` → `w04_baseline_score` → `w05_model` →
+`w06_validation_audit` → `w07_action_playbook` → `capstone`. Each is self-contained and re-downloads
+what it needs; later notebooks rebuild the earlier cohort and gate from scratch and print a
+"must match" line against the figure the earlier notebook reported.
 
 **Known reproducibility gaps (honest list):**
 1. **The computed feature vector is still not cached**, so the aggregation, joins and feature
