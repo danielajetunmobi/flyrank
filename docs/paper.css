@@ -16,25 +16,33 @@
    tight; on wide screens figures and tables run past the text measure. */
 
 :root {
-  /* deck palette */
-  --bg: #0a2426;
-  --card: #102e2f;
-  --card2: #16393a;
-  --ink: #071a1c;
-  --acc: #6cdd9b;
-  --txt: #f1f1f1;
-  --mut: #9fb8b2;
-  --warn: #f9c74f;
-  --blue: #8ab4f8;
+  /* editorial palette */
+  --bg: #10282a;
+  --bg-deep: #081b1d;
+  --card: #173536;
+  --card2: #214445;
+  --ink: #081719;
+  --acc: #b8ef72;
+  --txt: #f5f3eb;
+  --mut: #b3c4bb;
+  --warn: #f4b860;
+  --blue: #9ed8e5;
 
   /* supporting tones taken from the deck's widget styles */
-  --line: #1e4746;
-  --sel: #12402f;
+  --line: #315554;
+  --sel: #345a4a;
 
-  --measure: 52rem;
-  --bleed: 2.75rem;
+  /* Two widths. Prose holds a column: past roughly a hundred characters a line
+     stops being easy to track back from, and the fix for a narrow column is not
+     a wider one. Everything that is not prose -- the key-number strip, charts,
+     tables, the footer -- takes the full page, so the screen is filled by the
+     evidence rather than by margin. */
+  --measure: 56rem;
+  --wide: 92rem;
+  --gutter: clamp(1.125rem, 2.5vw, 2rem);
 
-  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --sans: "Aptos", "Segoe UI", system-ui, sans-serif;
+  --display: "Aptos Display", "Trebuchet MS", sans-serif;
   --mono: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
@@ -51,8 +59,10 @@ html {
 
 body {
   margin: 0;
-  padding: 0 1.5rem 4rem;
-  background: var(--bg);
+  padding: 0 var(--gutter) 4rem;
+  background:
+    radial-gradient(circle at 86% 0%, rgba(184, 239, 114, 0.09), transparent 28rem),
+    linear-gradient(180deg, var(--bg-deep) 0, var(--bg) 22rem, var(--bg) 100%);
   color: var(--txt);
   font-family: var(--sans);
   font-size: 1.0625rem;
@@ -62,7 +72,7 @@ body {
 }
 
 .page {
-  max-width: var(--measure);
+  max-width: var(--wide);
   margin: 0 auto;
 }
 
@@ -79,7 +89,23 @@ body {
 /* --- masthead ----------------------------------------------------------- */
 
 .masthead {
-  padding: 3rem 0 1.75rem;
+  position: relative;
+  padding: clamp(3.5rem, 9vw, 7rem) clamp(1.25rem, 5vw, 5rem) 2.75rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(33, 68, 69, 0.92), rgba(16, 40, 42, 0.35));
+  isolation: isolate;
+}
+
+.masthead::after {
+  position: absolute;
+  right: clamp(1.25rem, 5vw, 5rem);
+  bottom: 2rem;
+  width: clamp(4rem, 12vw, 10rem);
+  height: clamp(4rem, 12vw, 10rem);
+  border: 1px solid rgba(184, 239, 114, 0.35);
+  content: "";
+  transform: rotate(45deg);
+  z-index: -1;
 }
 
 /* the deck's .kick -- accent label with a solid square before it */
@@ -106,17 +132,20 @@ body {
 h1 {
   margin: 0 0 1rem;
   color: #ffffff;
-  font-size: clamp(1.875rem, 5.2vw, 2.75rem);
-  font-weight: 700;
-  line-height: 1.18;
-  letter-spacing: -0.015em;
+  max-width: 17ch;
+  font-family: var(--display);
+  font-size: clamp(2.75rem, 7vw, 5.75rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
 .standfirst {
   margin: 0 0 1.25rem;
   color: var(--mut);
-  font-size: clamp(1.0625rem, 2.3vw, 1.25rem);
+  max-width: 38rem;
+  font-size: clamp(1.0625rem, 2.3vw, 1.35rem);
   line-height: 1.55;
   text-wrap: balance;
 }
@@ -142,18 +171,21 @@ h1 {
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 0 0 1.25rem;
+  gap: 1px;
+  margin: 1.5rem 0 2rem;
+  border: 1px solid var(--line);
+  background: var(--line);
 }
 
 .stat {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
-  padding: 16px;
+  min-height: 8rem;
+  padding: 1.25rem;
   background: var(--card);
   border-top: 3px solid var(--acc);
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 .stat-value {
@@ -181,7 +213,8 @@ h1 {
   gap: 1.375rem;
   margin: 0 0 0.25rem;
   padding: 0.8125rem 0;
-  background: var(--bg);
+  background: rgba(8, 27, 29, 0.92);
+  backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
@@ -211,19 +244,20 @@ h1 {
 /* --- sections ----------------------------------------------------------- */
 
 section {
-  padding-top: 2.5rem;
+  padding-top: 4rem;
   scroll-margin-top: 4.25rem;
 }
 
 h2 {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 1.25rem;
-  padding-top: 1.125rem;
-  border-top: 1px solid var(--line);
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding-top: 1.375rem;
+  border-top: 2px solid var(--acc);
   color: #ffffff;
-  font-size: clamp(1.25rem, 2.9vw, 1.4375rem);
+  font-family: var(--display);
+  font-size: clamp(1.45rem, 2.9vw, 2rem);
   font-weight: 700;
   line-height: 1.28;
   letter-spacing: -0.005em;
@@ -246,7 +280,7 @@ h2 .num {
 }
 
 h3 {
-  margin: 1.875rem 0 0.625rem;
+  margin: 2.75rem auto 0.75rem;
   color: var(--acc);
   font-size: 0.75rem;
   font-weight: 700;
@@ -320,10 +354,11 @@ li::marker {
    two read as the same kind of object with different force. */
 
 .abstract-body {
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem clamp(1.25rem, 4vw, 2.5rem);
   background: var(--card2);
   border-left: 4px solid var(--acc);
-  border-radius: 10px;
+  border-radius: 0;
+  box-shadow: 12px 12px 0 rgba(184, 239, 114, 0.08);
 }
 
 .abstract-body p:first-child {
@@ -342,7 +377,7 @@ li::marker {
   padding: 1.25rem 1.5rem;
   background: var(--card2);
   border-left: 4px solid var(--warn);
-  border-radius: 10px;
+  border-radius: 0;
 }
 
 .limit p:last-child {
@@ -363,9 +398,10 @@ li::marker {
 
 figure {
   margin: 1.875rem 0;
-  padding: 16px;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
   background: var(--card);
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: 0;
 }
 
 figure img {
@@ -481,23 +517,10 @@ footer p:last-child {
   margin-bottom: 0;
 }
 
-/* --- wide screens -------------------------------------------------------
-   The charts and tables are the evidence, so past the text measure they run
-   wider than the prose. Below the breakpoint the bleed would collide with the
-   body padding, so it only applies when there is room for it. */
-
-@media (min-width: 64rem) {
-  figure,
-  .scroll {
-    margin-inline: calc(var(--bleed) * -1);
-  }
-}
-
 /* --- phones ------------------------------------------------------------- */
 
 @media (max-width: 40rem) {
   body {
-    padding: 0 1.125rem 3rem;
     font-size: 1rem;
   }
 
@@ -545,6 +568,30 @@ footer p:last-child {
   .limit {
     padding: 1.125rem 1.125rem;
   }
+}
+
+/* --- the readable column ------------------------------------------------
+   Text holds a column; everything that is not text -- the key-number strip,
+   charts, tables, the footer -- takes the full page width, so a wide screen is
+   filled by the evidence rather than by margin.
+
+   This sits at the end of the sheet on purpose. The components above each set
+   their own margins, and at equal specificity the later rule wins, so the
+   centring has to come after them or `.limit` and `.standfirst` would quietly
+   pin themselves back to the left edge. */
+
+.masthead > *,
+.toc,
+.abstract-body,
+.limit,
+section > h2,
+section > h3,
+section > p,
+section > ul,
+section > ol,
+section > pre {
+  max-width: var(--measure);
+  margin-inline: auto;
 }
 
 /* --- print --------------------------------------------------------------
